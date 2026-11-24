@@ -1,0 +1,4 @@
+# Copy to <project_id>.private.tfvars (git-ignored) to configure operator alerts and budgets.
+alert_email        = "alerts@example.com"
+billing_account_id = "012345-6789AB-CDEF01"
+monthly_budget_usd = 150

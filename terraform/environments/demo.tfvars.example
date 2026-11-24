@@ -1,0 +1,9 @@
+project_id            = "your-gcp-project-id"
+region                = "us-central1"
+environment           = "demo"
+mcp_service_name      = "mcp-bacen"
+mcp_region            = "us-central1"
+iam_scope             = "resource"
+enable_github_wif     = true
+github_repository     = "Faray-luiz/bacen-fintech-advisor"
+force_destroy_buckets = true

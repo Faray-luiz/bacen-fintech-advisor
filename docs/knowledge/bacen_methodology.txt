@@ -1,0 +1,56 @@
+BANCO CENTRAL DO BRASIL (BCB) & OPEN FINANCE BRASIL — REGULATORY METHODOLOGY KNOWLEDGE BASE
+===========================================================================================
+
+1. RANKING DE RECLAMAÇÕES DO BANCO CENTRAL (DEATI)
+--------------------------------------------------
+- Órgão responsável: Departamento de Atendimento Institucional (Deati / BCB).
+- Periodicidade: Trimestral (ex.: 2026-Q3).
+- Fórmula oficial do Índice de Reclamações:
+    Índice = (Quantidade de Reclamações Reguladas Procedentes / Quantidade Total de Clientes CCS) x 1.000.000
+- Direcionalidade: Quanto MENOR o índice, melhor o desempenho de conformidade e atendimento.
+- Base de clientes: Cadastro de Clientes do Sistema Financeiro Nacional (CCS), consolidando instituições do mesmo conglomerado prudencial (ex.: Nu Pagamentos + Nu Financeira).
+- Categorias mais frequentes: Irregularidades relacionadas a Pix e MED, oferta ou prestação inadequada de informações sobre crédito, cobrança indevida em cartão de crédito e segurança/integridade operacional.
+
+2. TAXAS DE JUROS DE OPERAÇÕES DE CRÉDITO (API OLINDA TAXAJUROS V2)
+-------------------------------------------------------------------
+- Plataforma: Olinda OData v2 (https://olinda.bcb.gov.br/olinda/servico/taxaJuros/versao/v2/odata/).
+- Recursos principais: TaxasJurosDiariaPorInicioPeriodo e TaxasJurosMensalPorMes.
+- Principais modalidades monitoradas no varejo digital:
+  * CARTAO_ROTATIVO: sujeito ao limite legal de encargos de 100% sobre o valor original da dívida (Lei nº 14.690/2023 e Resolução CMN nº 5.112/2023).
+  * CREDITO_PESSOAL_NAO_CONSIGNADO: crédito pessoal sem garantia em folha.
+  * CONSIGNADO_PRIVADO: crédito pessoal consignado para trabalhadores do setor privado (eSocial / CTPS Digital).
+  * CHEQUE_ESPECIAL: taxa mensal limitada a 8% a.m. pela Resolução CMN nº 4.765/2019.
+  * PARCELADO_CARTAO: parcelamento de fatura e compras com juros no cartão.
+- Direcionalidade: Taxas MENORES representam maior competitividade de preço para o tomador.
+
+3. PIX, SPI, DICT E MECANISMO ESPECIAL DE DEVOLUÇÃO (MED)
+---------------------------------------------------------
+- Marco regulatório: Resolução BCB nº 1/2020 (Regulamento do Pix) e normativos subsequentes do MED.
+- Componentes técnicos:
+  * SPI (Sistema de Pagamentos Instantâneos): infraestrutura centralizada de liquidação bruta em tempo real (LBTR) operada pelo BCB.
+  * DICT (Diretório de Identificadores de Contas Transacionais): registro de chaves Pix (CPF/CNPJ, e-mail, telefone ou chave aleatória EVP).
+  * MED (Mecanismo Especial de Devolução): fluxo padronizado para bloqueio cautelar e devolução de valores em caso de fundada suspeita de fraude ou falha operacional, com prazo de análise de até 7 dias corridos.
+- Metas regulatórias:
+  * Disponibilidade operacional SPI exigida de participantes diretos: >= 99,8%.
+  * Menor incidência de solicitações MED por 100 mil transações indica controle antifraude mais efetivo; maior taxa de devolução MED indica maior eficiência na recuperação de fundos às vítimas.
+
+4. SAÚDE PRUDENCIAL (IF.DATA / BASILEIA III) & OPEN FINANCE BRASIL
+------------------------------------------------------------------
+- IF.data: portal trimestral do BCB com balanços e indicadores prudenciais por conglomerado financeiro.
+- Segmentação prudencial (Resolução CMN nº 4.553/2017):
+  * S1: grandes bancos sistêmicos (ex.: Itaú, Bradesco, Banco do Brasil, Santander, Caixa).
+  * S2/S3/Instituições de Pagamento líderes: bancos digitais de grande escala e fintechs (ex.: Nubank, Inter, C6 Bank, Mercado Pago, BTG Pactual).
+- Indicadores-chave:
+  * Índice de Basileia (Resolução CMN nº 4.193): mede solvência (Patrimônio de Referência / Ativos Ponderados pelo Risco). Piso regulatório mínimo entre 10,5% e 11,5% (conforme adicionais de capital).
+  * ROE anualizado (%): retorno sobre o patrimônio líquido.
+  * Inadimplência > 90 dias (%): proporção da carteira de crédito com atraso superior a 90 dias (menor é melhor).
+  * Open Finance Brasil Fase 1 (Resolução Conjunta nº 1/2020): APIs públicas de canais, tarifas e produtos sem dados pessoais. Meta de disponibilidade trimestral >= 99,5%.
+
+5. METODOLOGIA DE SCORE CONSOLIDADO DO BENCHMARK (0 A 10)
+---------------------------------------------------------
+- Pesos padrão:
+  * Ranking de Reclamações BCB (Deati): 30%
+  * Competitividade de Taxas de Crédito (Olinda): 25%
+  * Escala, Disponibilidade SPI e Eficiência Pix/MED: 25%
+  * Saúde Prudencial (IF.data) & Open Finance: 20%
+- Todas as métricas inversas (índice de reclamações, taxa de juros, solicitações MED) são convertidas para a escala 0–10 de forma que 10 sempre represente o melhor desempenho competitivo.

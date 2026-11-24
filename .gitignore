@@ -1,0 +1,59 @@
+# Secrets & credentials (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*service-account*.json
+application_default_credentials.json
+
+# Deployment outputs
+.env.deploy
+deployment/.agent_engine.json
+deployment/environments/*.env
+!deployment/environments/*.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.log
+
+# ADK local state
+.adk/
+*.db
+*.sqlite
+*.sqlite3
+**/.adk/eval_history/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# E2E output
+e2e_results.json
+
+# Terraform
+.terraform/
+*.tfplan
+*.tfstate
+*.tfstate.*
+crash.log
+terraform/environments/*.private.tfvars
+terraform/environments/*.tfvars
+terraform/environments/*.backend.hcl
+!terraform/environments/*.example
