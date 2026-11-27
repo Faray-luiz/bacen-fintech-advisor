@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bacen Fintech Advisor · Inteligência Competitiva BCB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@500;600;700&family=Roboto:ital,wght@0,400;0,500;0,700;1,400&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0..1,0"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app-shell" id="appShell">
+    <!-- Mobile backdrop -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- Left Navigation Rail (Google M3 Navigation Drawer) -->
+    <aside class="sidebar" id="sidebar" aria-label="Navegação de sessões">
+      <div class="sidebar-header">
+        <div class="brand-lockup">
+          <div class="brand-emblem" aria-hidden="true">
+            <span class="dot dot-blue"></span>
+            <span class="dot dot-red"></span>
+            <span class="dot dot-yellow"></span>
+            <span class="dot dot-green"></span>
+          </div>
+          <div class="brand-text">
+            <span class="brand-name">Bacen Advisor</span>
+            <span class="brand-sub">BCB · Open Finance</span>
+          </div>
+        </div>
+        <button class="icon-btn mobile-only" id="closeSidebarBtn" title="Fechar menu" aria-label="Fechar menu">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="sidebar-actions">
+        <button class="fab-new-chat" id="newSessionBtn" type="button">
+          <span class="material-symbols-outlined">add</span>
+          <span>Nova análise</span>
+        </button>
+      </div>
+
+      <div class="sidebar-section-label">Análises recentes</div>
+      <nav class="session-list" id="sessionList" aria-label="Histórico de análises">
+        <!-- Populated dynamically -->
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="pillars-card">
+          <div class="pillars-title">
+            <span class="material-symbols-outlined">account_balance</span>
+            <span>4 Pilares Oficiais BCB</span>
+          </div>
+          <ul class="pillars-list">
+            <li><span>Deati</span><small>Reclamações</small></li>
+            <li><span>Olinda</span><small>Taxas de Crédito</small></li>
+            <li><span>SPI / MED</span><small>Pix &amp; Fraude</small></li>
+            <li><span>IF.data</span><small>Basileia &amp; ROE</small></li>
+          </ul>
+          <div class="runtime-meta" id="sidebarRuntimeMeta">
+            <span class="material-symbols-outlined">memory</span>
+            <span id="sidebarModelsText">Gemini Flash · Pro</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Center Workspace -->
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-btn" id="toggleSidebarBtn" title="Alternar barra lateral" aria-label="Alternar barra lateral">
+            <span class="material-symbols-outlined">menu</span>
+          </button>
+          <div class="session-heading">
+            <h1 class="session-title" id="activeSessionTitle">Nova análise BCB</h1>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <div class="status-chip" id="mcpStatusChip" title="Status do servidor MCP de dados públicos do Banco Central">
+            <span class="status-dot" id="mcpStatusDot"></span>
+            <span id="mcpStatusText">Verificando MCP...</span>
+          </div>
+          <div class="model-chip" id="modelRoutingChip" title="Roteamento estratégico de modelos Gemini">
+            <span class="material-symbols-outlined">auto_awesome</span>
+            <span id="modelRoutingText">Flash · Pro</span>
+          </div>
+          <button class="tonal-btn" id="toggleInspectorBtn" type="button" title="Abrir inspetor de agentes e auditoria">
+            <span class="material-symbols-outlined">account_tree</span>
+            <span class="hide-sm">Rastreamento</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="chat-scroll" id="chatScroll" tabindex="0">
+        <div class="chat-container" id="chatContainer">
+          <!-- Welcome Empty State -->
+          <section class="welcome-state" id="welcomeState">
+            <div class="welcome-badge">
+              <span class="dot dot-blue"></span>
+              <span class="dot dot-red"></span>
+              <span class="dot dot-yellow"></span>
+              <span class="dot dot-green"></span>
+              <span>Google ADK Multi-Agent · Dados Públicos BCB</span>
+            </div>
+            <h2 class="welcome-title">Como posso analisar o mercado financeiro hoje?</h2>
+            <p class="welcome-subtitle">
+              Compare bancos digitais e grandes bancos nos 4 pilares do Banco Central do Brasil,
+              simule rankings com pesos customizados e exporte qualquer análise em PDF executivo.
+            </p>
+
+            <div class="starter-grid" id="starterGrid">
+              <button class="starter-card" type="button" data-prompt="Compare o Nubank com Itaú, Bradesco e Inter nos 4 pilares do Banco Central">
+                <span class="starter-icon material-symbols-outlined">leaderboard</span>
+                <div class="starter-body">
+                  <div class="starter-title">Benchmark 4 Pilares</div>
+                  <div class="starter-desc">Nubank vs. Itaú, Bradesco e Inter em reclamações, crédito, Pix/MED e IF.data.</div>
+                </div>
+              </button>
+
+              <button class="starter-card" type="button" data-prompt="Refaça o ranking dando 50% de peso para Pix/MED, 30% para reclamações e 20% para taxas de crédito">
+                <span class="starter-icon material-symbols-outlined">tune</span>
+                <div class="starter-body">
+                  <div class="starter-title">Ranking com Pesos Customizados</div>
+                  <div class="starter-desc">Recalcule o ranking priorizando eficiência em Pix/MED e atendimento.</div>
+                </div>
+              </button>
+
+              <button class="starter-card" type="button" data-prompt="Qual a menor taxa do cartão rotativo entre Nubank, Itaú, Bradesco e Banco do Brasil?">
+                <span class="starter-icon material-symbols-outlined">percent</span>
+                <div class="starter-body">
+                  <div class="starter-title">Taxas de Crédito (Olinda)</div>
+                  <div class="starter-desc">Consulte juros mensais e anuais do rotativo nas séries oficiais do BCB.</div>
+                </div>
+              </button>
+
+              <button class="starter-card" type="button" data-prompt="Quais os principais motivos de reclamação nos bancos digitais no BCB?">
+                <span class="starter-icon material-symbols-outlined">support_agent</span>
+                <div class="starter-body">
+                  <div class="starter-title">Diagnóstico de Reclamações</div>
+                  <div class="starter-desc">Principais ofensores dos neobanks no ranking trimestral Deati/BCB.</div>
+                </div>
+              </button>
+
+              <button class="starter-card" type="button" data-prompt="O que é o MED do Pix e qual a meta de disponibilidade do SPI no Banco Central?">
+                <span class="starter-icon material-symbols-outlined">menu_book</span>
+                <div class="starter-body">
+                  <div class="starter-title">Glossário Regulatório BCB</div>
+                  <div class="starter-desc">Entenda regras do MED, metas do SPI, Basileia III e Open Finance.</div>
+                </div>
+              </button>
+
+              <button class="starter-card" type="button" data-prompt="Compare Nubank, C6 Bank e Mercado Pago nos 4 pilares e destaque os riscos regulatórios">
+                <span class="starter-icon material-symbols-outlined">verified_user</span>
+                <div class="starter-body">
+                  <div class="starter-title">Fintechs &amp; Solidez Prudencial</div>
+                  <div class="starter-desc">Análise profunda de capital, ROE, disponibilidade e riscos no segmento digital.</div>
+                </div>
+              </button>
+            </div>
+          </section>
+
+          <!-- Conversation Messages -->
+          <div class="messages-list" id="messagesList" aria-live="polite"></div>
+        </div>
+      </main>
+
+      <!-- Bottom Floating M3 Composer -->
+      <div class="composer-region">
+        <form class="composer-box" id="composerForm">
+          <textarea
+            id="promptInput"
+            class="composer-input"
+            rows="1"
+            placeholder="Pergunte sobre bancos digitais, taxas de juros, Pix/MED, reclamações ou IF.data..."
+            aria-label="Digite sua consulta sobre o Banco Central"
+          ></textarea>
+          <button class="send-btn" id="sendBtn" type="submit" title="Enviar consulta" aria-label="Enviar consulta" disabled>
+            <span class="material-symbols-outlined">arrow_upward</span>
+          </button>
+        </form>
+        <p class="composer-disclaimer">
+          Dados públicos do Banco Central do Brasil (Olinda / Deati / IF.data) &amp; Open Finance Brasil · PII redigido automaticamente antes de logs, memória e PDF.
+        </p>
+      </div>
+    </div>
+
+    <!-- Right-Side AgentOps Inspector Drawer -->
+    <aside class="inspector" id="inspectorDrawer" aria-label="Inspetor de execução multi-agente">
+      <div class="inspector-header">
+        <div class="inspector-title-group">
+          <span class="material-symbols-outlined">account_tree</span>
+          <div>
+            <h2>Rastreamento &amp; Auditoria</h2>
+            <p id="inspectorSubtitle">Selecione uma resposta para inspecionar</p>
+          </div>
+        </div>
+        <button class="icon-btn" id="closeInspectorBtn" title="Fechar inspetor" aria-label="Fechar inspetor">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="inspector-body" id="inspectorBody">
+        <div class="inspector-empty">
+          <span class="material-symbols-outlined">analytics</span>
+          <p>Clique em <strong>Rastreamento</strong> em qualquer resposta para visualizar o grafo de agentes, chamadas MCP BCB e o veredito do Quality Critic.</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Toast / Snackbar Notification -->
+  <div class="snackbar" id="snackbar" role="status" aria-live="polite"></div>
+
+  <!-- Marked.js CDN with graceful offline fallback inside app.js -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

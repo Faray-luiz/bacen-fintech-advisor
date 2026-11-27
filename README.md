@@ -189,12 +189,17 @@ make lint
 make test
 ```
 
-### Run locally with ADK CLI
+### Run locally (Google-style Web UI + Executive PDF Export & ADK CLI)
 ```bash
 # Terminal 1: start the local Bacen MCP server on http://localhost:8080/mcp
 make mcp-run
 
-# Terminal 2: launch ADK Web UI with persistent local SQLite sessions
+# Terminal 2 (Recommended): launch the Google Material Design 3 Web UI on http://localhost:8500
+# Includes live multi-agent SSE progress, AgentOps Inspector drawer, HITL approval UI,
+# persistent SQLite sessions, and 1-click Executive PDF export on every response.
+make ui
+
+# Or launch the standard ADK Dev UI with persistent local SQLite sessions:
 BACEN_MCP_URL=http://localhost:8080/mcp make playground
 # equivalent ADK CLI:
 # .venv/bin/adk web --session_service_uri sqlite:///.adk/sessions.db .
@@ -232,8 +237,8 @@ make e2e          PROJECT_ID=<your-project>
 
 | Layer | Command | Scope |
 |---|---|---|
-| **Static analysis** | `make lint` | `ruff check` across `bacen_advisor`, `mcp_bacen`, `tests`, `deployment` |
-| **Offline unit & contract tests** | `make test` | Agent topology, Flash/Pro routing, HITL confirmation, plugin ordering, Pydantic schemas, `ToolGuardPlugin`, `GuardrailsPlugin`, DLP/regex PII redaction, Memory Bank redaction, Secret Manager prod hardening, MCP StreamableHTTP protocol & W3C traceparent join |
+| **Static analysis** | `make lint` | `ruff check` across `bacen_advisor`, `mcp_bacen`, `web_ui`, `tests`, `deployment` |
+| **Offline unit & contract tests** | `make test` | Agent topology, Flash/Pro routing, HITL confirmation, plugin ordering, Pydantic schemas, `ToolGuardPlugin`, `GuardrailsPlugin`, DLP/regex PII redaction, Memory Bank redaction, Secret Manager prod hardening, Google-style Web UI API & Executive PDF exporter, MCP StreamableHTTP protocol & W3C traceparent join |
 | **Golden dataset eval** | `make eval` / `make adk-eval` | `AgentEvaluator` / `adk eval` scoring `tool_trajectory_avg_score` (`IN_ORDER >= 0.75`) and `final_response_match_v2` (`>= 0.70`) |
 | **Deployed E2E suite** | `make e2e` | Executes stories E1–E10 against Vertex AI Agent Engine including the HITL confirmation round-trip |
 

@@ -3,7 +3,7 @@ REGION     ?= us-central1
 PY         ?= .venv/bin/python
 GCLOUD     ?= gcloud
 
-.PHONY: install lint test mcp-test mcp-run mcp-deploy eval adk-eval e2e playground playground-otel run tf-bootstrap tf-init infra-plan infra verify-infra infra-destroy deploy adk-deploy deploy-test destroy
+.PHONY: install lint test mcp-test mcp-run mcp-deploy ui eval adk-eval e2e playground playground-otel run tf-bootstrap tf-init infra-plan infra verify-infra infra-destroy deploy adk-deploy deploy-test destroy
 
 install:            ## Create venv and install deps (uses uv if available, else python3 -m venv)
 	@if command -v uv >/dev/null 2>&1; then \
@@ -12,8 +12,8 @@ install:            ## Create venv and install deps (uses uv if available, else 
 		python3 -m venv .venv && $(PY) -m pip install -U pip && $(PY) -m pip install -e ".[dev]"; \
 	fi
 
-lint:               ## Static checks (ADK agents + MCP server)
-	$(PY) -m ruff check bacen_advisor mcp_bacen tests deployment
+lint:               ## Static checks (ADK agents + MCP server + Web UI)
+	$(PY) -m ruff check bacen_advisor mcp_bacen web_ui tests deployment
 
 test:               ## Offline unit & contract tests (ADK agents + MCP server)
 	$(PY) -m pytest tests/unit -q
@@ -36,6 +36,9 @@ adk-eval:           ## Golden-dataset evaluation via ADK CLI
 
 e2e:                ## Run all user stories against deployed Agent Runtime
 	GOOGLE_CLOUD_PROJECT=$(PROJECT_ID) $(PY) tests/e2e/run_remote_stories.py
+
+ui:                 ## Start Google Material Design 3 Web UI with per-output PDF export on http://localhost:8500
+	$(PY) -m uvicorn web_ui.server:app --host 0.0.0.0 --port 8500
 
 playground:         ## ADK dev UI with persistent local SQLite sessions
 	.venv/bin/adk web --session_service_uri sqlite:///.adk/sessions.db .
