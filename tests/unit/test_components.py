@@ -55,6 +55,7 @@ def test_aliases_are_normalized():
     "bad",
     [
         {"instituicao": "Banco Inexistente XYZ"},
+        {"instituicao": "NUBANK,ITAU,BRADESCO"},
         {"segmento": "cripto_desregulado"},
         {"trimestre": "Q3-2026"},
         {"limite": 0},
@@ -293,6 +294,43 @@ async def test_tool_guard_converts_exceptions():
         tool=tool, tool_args={}, tool_context=_ctx(), error=TimeoutError("timed out")
     )
     assert out["status"] == "error" and "narrower" in out["recovery_hint"]
+
+
+async def test_tool_guard_blocks_duplicate_calls_and_enforces_budget():
+    plugin = ToolGuardPlugin(max_calls_per_invocation=2)
+    tool = SimpleNamespace(name="consultar_ranking_reclamacoes_bcb")
+    ctx = _ctx()
+    # First call passes
+    assert await plugin.before_tool_callback(tool=tool, tool_args={"instituicao": "Nubank"}, tool_context=ctx) is None
+    # Identical call in same invocation is blocked with recovery_hint (prevents LLM tool loops)
+    dup = await plugin.before_tool_callback(tool=tool, tool_args={"instituicao": "Nu"}, tool_context=ctx)
+    assert dup is not None and dup["error_type"] == "duplicate_tool_call" and dup["recovery_hint"]
+    # Second distinct call passes
+    assert await plugin.before_tool_callback(tool=tool, tool_args={"instituicao": "Itau"}, tool_context=ctx) is None
+    # Third call exceeds budget
+    over = await plugin.before_tool_callback(tool=tool, tool_args={"instituicao": "Inter"}, tool_context=ctx)
+    assert over is not None and over["error_type"] == "call_budget_exceeded"
+
+
+def test_pii_filter_preserves_uuid_correlation_ids_while_redacting_pix_evp():
+    record = logging.LogRecord(
+        name="t",
+        level=logging.INFO,
+        pathname="x.py",
+        lineno=1,
+        msg="tool_intent",
+        args=None,
+        exc_info=None,
+    )
+    record.session_id = "48f623bb-d197-479d-b4af-bc2cbb535123"
+    record.invocation_id = "e-afff3091-e9a5-4c08-aad8-f5301435a5eb"
+    record.intended_args = {"motivo": "chave 550e8400-e29b-41d4-a716-446655440000"}
+    PiiRedactionFilter().filter(record)
+    line = CloudJsonFormatter().format(record)
+    assert "48f623bb-d197-479d-b4af-bc2cbb535123" in line
+    assert "e-afff3091-e9a5-4c08-aad8-f5301435a5eb" in line
+    assert "550e8400-e29b-41d4-a716-446655440000" not in line
+    assert "[REDACTED_PIX_EVP_KEY]" in line
 
 
 # ------------------------------------------------------------------ observability & telemetry

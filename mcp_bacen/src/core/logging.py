@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 _RESERVED = set(vars(logging.makeLogRecord({})).keys()) | {"message", "asctime"}
+_CORRELATION_KEYS = frozenset({"invocation_id", "session_id", "call_id", "request_id"})
 
 _PII_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("EMAIL_ADDRESS", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")),
@@ -68,7 +69,7 @@ class PiiRedactionFilter(logging.Filter):
                 else redact_obj(record.args)
             )
         for key, value in list(vars(record).items()):
-            if key not in _RESERVED:
+            if key not in _RESERVED and key not in _CORRELATION_KEYS:
                 setattr(record, key, redact_obj(value))
         return True
 

@@ -22,6 +22,9 @@ from ..config import get_settings
 from ..pii import redact_obj, redact_regex
 
 _RESERVED = set(vars(logging.makeLogRecord({})).keys()) | {"message", "asctime"}
+# System correlation identifiers (UUIDs) must not be redacted by the Pix EVP UUID pattern
+# so Cloud Logging queries by invocation_id / session_id / call_id remain searchable.
+_CORRELATION_KEYS = frozenset({"invocation_id", "session_id", "call_id", "request_id", "report_id"})
 _CONFIGURED = False
 
 
@@ -38,7 +41,7 @@ class PiiRedactionFilter(logging.Filter):
                 else redact_obj(record.args)
             )
         for key, value in list(vars(record).items()):
-            if key not in _RESERVED:
+            if key not in _RESERVED and key not in _CORRELATION_KEYS:
                 setattr(record, key, redact_obj(value))
         return True
 

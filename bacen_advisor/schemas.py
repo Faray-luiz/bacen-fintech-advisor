@@ -126,6 +126,12 @@ def normalize_institution(value: str | None) -> str | None:
     """Maps free-text bank/fintech names (e.g. 'Nu Pagamentos', 'BB') to canonical codes."""
     if value is None:
         return None
+    if any(sep in value for sep in (",", ";", "|")):
+        raise ValueError(
+            f"Multiple institutions passed in single-institution field '{value}'. "
+            "Pass ONE institution name per call, or omit instituicao (use segmento='TODOS') "
+            "or call comparar_instituicoes_financeiras(instituicoes=[...]) for multi-institution queries."
+        )
     key = _ascii_upper(value)
     if not key:
         return None

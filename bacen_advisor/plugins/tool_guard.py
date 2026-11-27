@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from google.adk.plugins.base_plugin import BasePlugin
@@ -24,6 +25,8 @@ from ..observability.logging import get_logger
 from ..schemas import MCP_ARG_SCHEMAS, McpToolOutput
 
 logger = get_logger(__name__)
+
+_MAX_MCP_CALLS_PER_INVOCATION = 12
 
 
 def _validation_hint(tool_name: str, exc: ValidationError) -> dict[str, Any]:
@@ -61,10 +64,13 @@ def _recovery_for_exception(error: Exception) -> str:
 
 
 class ToolGuardPlugin(BasePlugin):
-    """Validates tool arguments/outputs and turns failures into actionable LLM hints."""
+    """Validates tool arguments/outputs, prevents duplicate-call loops and guides recovery."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_calls_per_invocation: int = _MAX_MCP_CALLS_PER_INVOCATION) -> None:
         super().__init__(name="tool_guard")
+        self._max_calls_per_invocation = max_calls_per_invocation
+        self._seen_calls: dict[str, set[str]] = {}
+        self._call_counts: dict[str, int] = {}
 
     async def before_tool_callback(
         self, *, tool: BaseTool, tool_args: dict[str, Any], tool_context: ToolContext
@@ -80,8 +86,46 @@ class ToolGuardPlugin(BasePlugin):
                 extra={"tool": tool.name, "rejected_args": tool_args, "errors": exc.errors(include_url=False)},
             )
             return _validation_hint(tool.name, exc)
+
+        normalized = validated.model_dump(exclude_none=True)
+        inv_id = getattr(tool_context, "invocation_id", None)
+        if inv_id:
+            if len(self._seen_calls) > 2_000:
+                self._seen_calls.clear()
+                self._call_counts.clear()
+            signature = f"{tool.name}:{json.dumps(normalized, sort_keys=True, ensure_ascii=False)}"
+            seen = self._seen_calls.setdefault(inv_id, set())
+            if signature in seen:
+                logger.warning("duplicate_tool_call_blocked", extra={"tool": tool.name, "invocation_id": inv_id})
+                return {
+                    "status": "error",
+                    "error_type": "duplicate_tool_call",
+                    "tool": tool.name,
+                    "error_message": "Identical tool call already executed in this invocation.",
+                    "recovery_hint": (
+                        "You already retrieved this exact result earlier in this turn. "
+                        "Do NOT call this tool again; use the data already in conversation history "
+                        "and immediately produce your final structured output."
+                    ),
+                }
+            count = self._call_counts.get(inv_id, 0)
+            if count >= self._max_calls_per_invocation:
+                logger.warning("tool_call_budget_exceeded", extra={"tool": tool.name, "invocation_id": inv_id})
+                return {
+                    "status": "error",
+                    "error_type": "call_budget_exceeded",
+                    "tool": tool.name,
+                    "error_message": f"Reached max {self._max_calls_per_invocation} MCP tool calls in one invocation.",
+                    "recovery_hint": (
+                        "Stop calling tools now and synthesize your response strictly from the "
+                        "data already collected in this session."
+                    ),
+                }
+            seen.add(signature)
+            self._call_counts[inv_id] = count + 1
+
         tool_args.clear()
-        tool_args.update(validated.model_dump(exclude_none=True))
+        tool_args.update(normalized)
         return None
 
     async def after_tool_callback(

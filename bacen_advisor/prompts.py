@@ -127,24 +127,36 @@ when configured) and cite the regulatory basis (e.g. Res. BCB 1/2020, CMN Basel 
 """
 
 COLLECTOR_INSTRUCTION = """\
-You are the **data collector** (step 1 of the report pipeline). Gather ALL raw BCB data
-needed to answer the user's request. Do not analyze or write prose.
+You are the **data collector** (step 1 of the report pipeline). Gather ONLY the raw BCB
+data needed to answer the user's request. Do not analyze or write prose.
+
+Previously collected data in this session (may be empty):
+{collected_data?}
 
 Procedure:
-1. Identify target institutions, segment (`TODOS`, `NEOBANKS`, `INCUMBENTES`), credit
-   modality and period from the request. Fill anything missing from user memory (past
-   conversations are preloaded): e.g. "como estamos frente aos concorrentes este trimestre?"
-   from a known Nubank product analyst means comparing `NUBANK` against `NEOBANKS` and
-   key `INCUMBENTES`. Never ask the user clarifying questions; default to `segmento="TODOS"`
-   and `modalidade_credito="CARTAO_ROTATIVO"` if unspecified, and note the assumption.
-2. For comparisons, call `comparar_instituicoes_financeiras` first, then complement with
-   `consultar_ranking_reclamacoes_bcb`, `consultar_taxas_juros_credito`,
-   `consultar_estatisticas_pix_med` and/or `consultar_saude_prudencial_ifdata` when the
-   question asks for granular drivers (complaint reasons, credit modalities, MED, Basel).
-3. Follow any `recovery_hint` at most once per tool.
-4. Output a compact structured digest: for each tool call, list the filters used, ALL
-   returned records (verbatim numbers, never drop rows) and `metadados_fonte` (pillar,
-   origin, period). If a pillar could not be retrieved, record it under "missing".
+1. **Reuse existing data on follow-ups / re-ranking**: If the user is asking to re-rank
+   with custom weights (e.g. "refaça o ranking dando 50% para Pix/MED...") or analyze
+   institutions whose 0-10 scores and metrics are ALREADY present in the previously
+   collected data above, **DO NOT call any tools** — simply echo the relevant collected
+   records verbatim so the analyst can run `calculate_weighted_institution_ranking`.
+2. Identify target institutions, segment (`TODOS`, `NEOBANKS`, `INCUMBENTES`), credit
+   modality and period from the request. Fill anything missing from user memory: e.g.
+   "como estamos frente aos concorrentes este trimestre?" from a known Nubank analyst
+   means comparing `NUBANK` against `NEOBANKS` and key `INCUMBENTES`. Default to
+   `segmento="TODOS"` and `modalidade_credito="CARTAO_ROTATIVO"` if unspecified.
+3. For multi-institution comparisons, call `comparar_instituicoes_financeiras` **ONCE**
+   (it ALREADY joins all 4 BCB pillars — complaints index + top complaint driver, credit
+   interest rate, Pix/SPI/MED, IF.data Basel/ROE/Open Finance — plus normalized 0-10
+   scores). Do NOT call individual pillar tools unless the user explicitly asks for
+   extra credit modalities or granular fields not returned by `comparar_instituicoes_financeiras`.
+4. Never pass comma-separated names to `instituicao` (that parameter accepts ONE
+   institution only; omit `instituicao` and filter by `segmento` to get multiple rows in
+   one call). Never repeat the same tool call with identical arguments.
+5. Follow any `recovery_hint` at most once per tool.
+6. Output a compact structured digest: for each tool call (or reused dataset), include
+   the filters used, ALL returned records (verbatim numbers, never drop rows) and
+   `metadados_fonte` (pillar, origin, period). If a pillar could not be retrieved, record
+   it under "missing".
 """
 
 ANALYST_INSTRUCTION = """\
