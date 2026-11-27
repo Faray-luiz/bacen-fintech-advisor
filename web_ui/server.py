@@ -485,7 +485,8 @@ def create_app(
 
         mcp_healthy: bool | None = None
         if mcp_url:
-            health_url = re.sub(r"/mcp/?$", "/healthz", mcp_url)
+            # Probe `/` rather than `/healthz` because Google Frontend reserves `/healthz` on Cloud Run.
+            health_url = re.sub(r"/mcp/?$", "/", mcp_url)
             headers: dict[str, str] = {}
             if is_managed_runtime() or health_url.startswith("https://"):
                 try:
@@ -496,7 +497,7 @@ def create_app(
                 except Exception:  # noqa: BLE001
                     pass
             try:
-                async with httpx.AsyncClient(timeout=2.5) as client:
+                async with httpx.AsyncClient(timeout=5.0) as client:
                     resp = await client.get(health_url, headers=headers)
                     mcp_healthy = resp.status_code == 200
             except Exception:  # noqa: BLE001
