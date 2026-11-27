@@ -26,6 +26,7 @@ VERTEX_LOCATION="${VERTEX_LOCATION:-global}"
 MCP_SERVICE_NAME="${MCP_SERVICE_NAME:-mcp-bacen}"
 UI_SERVICE_NAME="${UI_SERVICE_NAME:-bacen-advisor-ui}"
 UI_SA_NAME="${UI_SA_NAME:-bacen-advisor-ui-sa}"
+INGRESS="${INGRESS:-all}"
 SECRET_ID="${SECRET_ID:-bacen-mcp-url}"
 MODEL_FLASH="${MODEL_FLASH:-gemini-3-flash-preview}"
 MODEL_PRO="${MODEL_PRO:-gemini-3.1-pro-preview}"
@@ -133,6 +134,7 @@ ${GCLOUD} run deploy "${UI_SERVICE_NAME}" \
   --region "${REGION}" \
   --platform managed \
   --service-account "${UI_SA}" \
+  --ingress "${INGRESS}" \
   --no-allow-unauthenticated \
   --session-affinity \
   --memory 2Gi \
@@ -141,6 +143,7 @@ ${GCLOUD} run deploy "${UI_SERVICE_NAME}" \
   --timeout 300s \
   --min-instances 0 \
   --max-instances 5 \
+  --quiet \
   --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${VERTEX_LOCATION},GOOGLE_GENAI_USE_VERTEXAI=TRUE,MCP_URL_SECRET_ID=${SECRET_ID},MODEL_ROUTER=${MODEL_FLASH},MODEL_COLLECTOR=${MODEL_FLASH},MODEL_CRITIC=${MODEL_FLASH},MODEL_SUMMARIZER=${MODEL_FLASH},MODEL_ANALYST=${MODEL_PRO},MODEL_CONSULTANT=${MODEL_PRO},PII_REDACTION_MODE=${PII_MODE},ENABLE_CLOUD_TRACE=true,LOG_LEVEL=INFO"
 
 UI_URL="$(${GCLOUD} run services describe "${UI_SERVICE_NAME}" \

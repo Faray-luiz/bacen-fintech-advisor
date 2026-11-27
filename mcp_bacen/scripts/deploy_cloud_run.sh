@@ -15,6 +15,7 @@ PROJECT_ID="${PROJECT_ID:-$(${GCLOUD} config get-value project 2>/dev/null)}"
 REGION="${REGION:-us-central1}"
 SERVICE_NAME="${SERVICE_NAME:-mcp-bacen}"
 RUNTIME_SA_NAME="${RUNTIME_SA_NAME:-mcp-bacen-sa}"
+INGRESS="${INGRESS:-all}"
 
 if [[ -z "${PROJECT_ID}" ]]; then
   echo "Error: set PROJECT_ID (e.g. export PROJECT_ID=my-gcp-project)"
@@ -61,12 +62,14 @@ ${GCLOUD} run deploy "${SERVICE_NAME}" \
   --region "${REGION}" \
   --platform managed \
   --service-account "${RUNTIME_SA}" \
+  --ingress "${INGRESS}" \
   --no-allow-unauthenticated \
   --memory 1Gi \
   --cpu 1 \
   --timeout 60s \
   --min-instances 0 \
   --max-instances 5 \
+  --quiet \
   --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,CACHE_TTL_SECONDS=3600,HTTP_TIMEOUT_SECONDS=12.0,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},ENABLE_CLOUD_TRACE=true"
 
 SERVICE_URL="$(${GCLOUD} run services describe "${SERVICE_NAME}" --project "${PROJECT_ID}" --region "${REGION}" --format="value(status.url)")"
