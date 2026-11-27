@@ -81,6 +81,12 @@ class GoogleLoginRequest(BaseModel):
     credential: str = Field(min_length=16, max_length=8192)
 
 
+class AllowlistEntryRequest(BaseModel):
+    """Payload for ``POST`` / ``DELETE`` ``/api/admin/allowlist``."""
+
+    entry: str = Field(min_length=3, max_length=254)
+
+
 class ConfirmationPayload(BaseModel):
     """Human-in-the-loop response to an ADK ``adk_request_confirmation`` pause."""
 
@@ -442,6 +448,7 @@ def create_app(
     access_token: str | None = None,
     google_client_id: str | None = None,
     allowed_emails: list[str] | None = None,
+    admin_emails: list[str] | None = None,
     allow_token_login: bool | None = None,
     google_verifier: Any | None = None,
 ) -> FastAPI:
@@ -451,6 +458,7 @@ def create_app(
         access_token=access_token,
         google_client_id=google_client_id,
         allowed_emails=allowed_emails,
+        admin_emails=admin_emails,
         allow_token_login=allow_token_login,
         google_verifier=google_verifier,
     )
@@ -532,11 +540,48 @@ def create_app(
                     "name": user.name,
                     "picture": user.picture,
                     "auth_method": user.auth_method,
+                    "is_admin": gate.is_admin(user),
                 }
                 if user and user.email
                 else None
             ),
         }
+
+    def _require_admin(request: Request) -> AuthenticatedUser:
+        user: AuthenticatedUser | None = getattr(request.state, "auth_user", None) or gate.get_authenticated_user(request)
+        if not gate.is_admin(user):
+            raise HTTPException(
+                status_code=403,
+                detail="Acesso restrito a administradores.",
+            )
+        return user  # type: ignore[return-value]
+
+    @api.get("/api/admin/allowlist")
+    async def admin_get_allowlist(request: Request) -> dict[str, Any]:
+        _require_admin(request)
+        return await asyncio.to_thread(gate.get_allowlist_snapshot, force_refresh=True)
+
+    @api.post("/api/admin/allowlist")
+    async def admin_add_allowlist(payload: AllowlistEntryRequest, request: Request) -> dict[str, Any]:
+        _require_admin(request)
+        try:
+            return await asyncio.to_thread(gate.add_allowlist_entry, payload.entry)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=f"Falha ao atualizar allowlist: {exc}") from exc
+
+    @api.delete("/api/admin/allowlist")
+    async def admin_remove_allowlist(payload: AllowlistEntryRequest, request: Request) -> dict[str, Any]:
+        _require_admin(request)
+        try:
+            return await asyncio.to_thread(gate.remove_allowlist_entry, payload.entry)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=f"Falha ao remover da allowlist: {exc}") from exc
 
     @api.post("/api/auth/google")
     async def auth_google(
@@ -571,7 +616,12 @@ def create_app(
         return {
             "status": "ok",
             "authenticated": True,
-            "user": {"email": user.email, "name": user.name, "picture": user.picture},
+            "user": {
+                "email": user.email,
+                "name": user.name,
+                "picture": user.picture,
+                "is_admin": gate.is_admin(user),
+            },
         }
 
     @api.post("/api/auth/login")

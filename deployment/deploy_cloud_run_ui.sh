@@ -30,6 +30,7 @@ INGRESS="${INGRESS:-all}"
 SECRET_ID="${SECRET_ID:-bacen-mcp-url}"
 UI_AUTH_SECRET_ID="${UI_AUTH_SECRET_ID:-bacen-ui-access-token}"
 UI_ALLOWED_EMAILS_SECRET_ID="${UI_ALLOWED_EMAILS_SECRET_ID:-bacen-ui-allowed-emails}"
+UI_ADMIN_EMAILS="${UI_ADMIN_EMAILS:-}"
 GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-}"
 UI_ALLOW_TOKEN_LOGIN="${UI_ALLOW_TOKEN_LOGIN:-false}"
 PUBLIC_WITH_APP_LOGIN="${PUBLIC_WITH_APP_LOGIN:-false}"
@@ -150,7 +151,15 @@ if [[ "${PUBLIC_WITH_APP_LOGIN}" == "true" ]]; then
       --member="serviceAccount:${UI_SA}" \
       --role="roles/secretmanager.secretAccessor" \
       --quiet >/dev/null
+    ${GCLOUD} secrets add-iam-policy-binding "${UI_ALLOWED_EMAILS_SECRET_ID}" \
+      --project "${PROJECT_ID}" \
+      --member="serviceAccount:${UI_SA}" \
+      --role="roles/secretmanager.secretVersionAdder" \
+      --quiet >/dev/null
     UI_EXTRA_ENV="${UI_EXTRA_ENV},GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID},UI_ALLOWED_EMAILS_SECRET_ID=${UI_ALLOWED_EMAILS_SECRET_ID}"
+    if [[ -n "${UI_ADMIN_EMAILS}" ]]; then
+      UI_EXTRA_ENV="${UI_EXTRA_ENV},UI_ADMIN_EMAILS=${UI_ADMIN_EMAILS}"
+    fi
   fi
 fi
 

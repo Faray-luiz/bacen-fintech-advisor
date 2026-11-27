@@ -155,6 +155,10 @@
             <span class="material-symbols-outlined">account_tree</span>
             <span class="hide-sm">Rastreamento</span>
           </button>
+          <button class="tonal-btn hidden" id="openAdminBtn" type="button" title="Gerenciar contas e domínios autorizados">
+            <span class="material-symbols-outlined">admin_panel_settings</span>
+            <span class="hide-sm">Admin</span>
+          </button>
           <div class="user-pill hidden" id="userPill" title="">
             <img class="user-avatar hidden" id="userAvatarImg" alt="" referrerpolicy="no-referrer" />
             <span class="user-avatar-fallback" id="userAvatarFallback">U</span>
@@ -281,6 +285,47 @@
         </div>
       </div>
     </aside>
+  </div>
+
+  <!-- Google Material Design 3 Admin Allowlist Modal (visible only to admins) -->
+  <div class="admin-modal-backdrop hidden" id="adminModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
+    <div class="admin-modal">
+      <div class="admin-modal-header">
+        <div class="admin-modal-title-group">
+          <span class="material-symbols-outlined">admin_panel_settings</span>
+          <div>
+            <h2 id="adminModalTitle">Gerenciar Acessos (Allowlist)</h2>
+            <p id="adminStorageHint">Persistido no Google Secret Manager · efeito imediato</p>
+          </div>
+        </div>
+        <button class="icon-btn" id="closeAdminModalBtn" type="button" title="Fechar painel admin" aria-label="Fechar painel admin">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="admin-modal-body">
+        <form class="admin-add-form" id="adminAddForm">
+          <input
+            type="text"
+            id="adminEntryInput"
+            class="admin-entry-input"
+            placeholder="Digite um e-mail (maria@gmail.com) ou domínio (@empresa.com)"
+            autocomplete="off"
+            required
+          />
+          <button type="submit" class="btn-pdf-export" id="adminAddBtn">
+            <span class="material-symbols-outlined">person_add</span>
+            <span>Liberar</span>
+          </button>
+        </form>
+        <div class="auth-error hidden" id="adminErrorMsg" role="alert"></div>
+
+        <div class="admin-section">
+          <h3>Contas e domínios autorizados (<span id="adminTotalCount">0</span>)</h3>
+          <ul class="admin-list" id="adminAllowlistItems"></ul>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Toast / Snackbar Notification -->

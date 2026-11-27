@@ -363,3 +363,75 @@ def test_web_ui_google_signin_allowlist_user_isolation_and_live_revocation():
     # Live revocation: removing Alice from allowlist invalidates her existing cookie immediately.
     allowed.remove("alice@gmail.com")
     assert c_alice.get("/api/sessions").status_code == 401
+
+
+def test_web_ui_admin_panel_manages_allowlist_and_blocks_non_admins():
+    allowed = ["owner@gmail.com"]
+
+    def fake_verifier(credential: str, client_id: str):
+        del client_id
+        users = {
+            "tok-owner-000000000000": {
+                "iss": "https://accounts.google.com",
+                "email": "owner@gmail.com",
+                "email_verified": True,
+                "name": "Owner Admin",
+            },
+            "tok-guest-000000000000": {
+                "iss": "https://accounts.google.com",
+                "email": "guest@gmail.com",
+                "email_verified": True,
+                "name": "Guest User",
+            },
+        }
+        return users[credential]
+
+    app = create_app(
+        session_service=InMemorySessionService(),
+        app_name="bacen_advisor",
+        access_token="signing-key",
+        google_client_id="12345.apps.googleusercontent.com",
+        allowed_emails=allowed,
+        admin_emails=["owner@gmail.com"],
+        allow_token_login=False,
+        google_verifier=fake_verifier,
+    )
+
+    c_admin = TestClient(app)
+    c_guest = TestClient(app)
+
+    # Admin logs in -> is_admin=True.
+    r_adm = c_admin.post("/api/auth/google", json={"credential": "tok-owner-000000000000"})
+    assert r_adm.status_code == 200
+    assert r_adm.json()["user"]["is_admin"] is True
+
+    # Guest initially blocked before admin adds them.
+    assert c_guest.post("/api/auth/google", json={"credential": "tok-guest-000000000000"}).status_code == 403
+
+    # Admin adds guest@gmail.com and @google.com via Admin API.
+    r_add = c_admin.post("/api/admin/allowlist", json={"entry": "guest@gmail.com"})
+    assert r_add.status_code == 200
+    assert "guest@gmail.com" in r_add.json()["emails"]
+
+    r_dom = c_admin.post("/api/admin/allowlist", json={"entry": "@google.com"})
+    assert r_dom.status_code == 200
+    assert "@google.com" in r_dom.json()["domains"]
+
+    # Invalid format rejected with 422.
+    assert c_admin.post("/api/admin/allowlist", json={"entry": "not-an-email"}).status_code == 422
+
+    # Admin cannot remove themselves (400 anti-lockout guardrail).
+    assert c_admin.request("DELETE", "/api/admin/allowlist", json={"entry": "owner@gmail.com"}).status_code == 400
+
+    # Guest can now sign in, sees is_admin=False, and receives 403 on all Admin APIs.
+    r_g = c_guest.post("/api/auth/google", json={"credential": "tok-guest-000000000000"})
+    assert r_g.status_code == 200
+    assert r_g.json()["user"]["is_admin"] is False
+    assert c_guest.get("/api/admin/allowlist").status_code == 403
+    assert c_guest.post("/api/admin/allowlist", json={"entry": "x@y.com"}).status_code == 403
+
+    # Admin revokes guest@gmail.com -> guest's existing cookie is immediately rejected with 401.
+    r_del = c_admin.request("DELETE", "/api/admin/allowlist", json={"entry": "guest@gmail.com"})
+    assert r_del.status_code == 200
+    assert "guest@gmail.com" not in r_del.json()["emails"]
+    assert c_guest.get("/api/sessions").status_code == 401

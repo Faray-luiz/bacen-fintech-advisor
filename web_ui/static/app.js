@@ -34,6 +34,16 @@
     authErrorMsg: document.getElementById("authErrorMsg"),
     authSubmitBtn: document.getElementById("authSubmitBtn"),
     toggleTokenVisibilityBtn: document.getElementById("toggleTokenVisibilityBtn"),
+    openAdminBtn: document.getElementById("openAdminBtn"),
+    adminModalBackdrop: document.getElementById("adminModalBackdrop"),
+    closeAdminModalBtn: document.getElementById("closeAdminModalBtn"),
+    adminAddForm: document.getElementById("adminAddForm"),
+    adminEntryInput: document.getElementById("adminEntryInput"),
+    adminAddBtn: document.getElementById("adminAddBtn"),
+    adminErrorMsg: document.getElementById("adminErrorMsg"),
+    adminTotalCount: document.getElementById("adminTotalCount"),
+    adminAllowlistItems: document.getElementById("adminAllowlistItems"),
+    adminStorageHint: document.getElementById("adminStorageHint"),
     userPill: document.getElementById("userPill"),
     userAvatarImg: document.getElementById("userAvatarImg"),
     userAvatarFallback: document.getElementById("userAvatarFallback"),
@@ -209,8 +219,10 @@
   function renderUserPill(user) {
     if (!user || !user.email) {
       dom.userPill.classList.add("hidden");
+      dom.openAdminBtn.classList.add("hidden");
       return;
     }
+    dom.openAdminBtn.classList.toggle("hidden", !user.is_admin);
     dom.userPill.classList.remove("hidden");
     dom.userPill.title = user.email;
     const displayName = user.name || user.email.split("@")[0];
@@ -333,6 +345,114 @@
     hideAuthOverlay();
     loadHealth();
     loadSessions();
+  }
+
+  // ------------------------------------------------------------------------
+  // Admin Allowlist Panel (visible only to configured admins)
+  // ------------------------------------------------------------------------
+
+  function renderAdminAllowlist(data) {
+    const adminsSet = new Set((data.admins || []).map((e) => e.toLowerCase()));
+    const entries = [
+      ...(data.domains || []).map((v) => ({ value: v, kind: "domain" })),
+      ...(data.emails || []).map((v) => ({ value: v, kind: "email" })),
+    ];
+    dom.adminTotalCount.textContent = String(entries.length);
+    if (data.storage === "secret_manager" && data.secret_id) {
+      dom.adminStorageHint.textContent = `Secret Manager (${data.secret_id}) · efeito imediato`;
+    } else {
+      dom.adminStorageHint.textContent = "Allowlist em memória (ambiente local)";
+    }
+
+    dom.adminAllowlistItems.innerHTML = "";
+    for (const item of entries) {
+      const isAdminEntry = adminsSet.has(item.value.toLowerCase());
+      const li = document.createElement("li");
+      li.className = "admin-list-item";
+      const iconName = item.kind === "domain" ? "domain" : isAdminEntry ? "verified_user" : "person";
+      li.innerHTML = `
+        <div class="admin-entry-meta">
+          <span class="material-symbols-outlined">${iconName}</span>
+          <span class="admin-entry-value">${escapeHtml(item.value)}</span>
+        </div>
+        ${
+          isAdminEntry
+            ? `<span class="admin-badge">Admin</span>`
+            : `<button class="admin-revoke-btn" type="button" data-revoke="${escapeHtml(item.value)}">
+                 <span class="material-symbols-outlined" style="font-size:15px">delete_outline</span>
+                 <span>Revogar</span>
+               </button>`
+        }
+      `;
+      const revBtn = li.querySelector("[data-revoke]");
+      if (revBtn) {
+        revBtn.addEventListener("click", () => revokeAllowlistEntry(item.value, revBtn));
+      }
+      dom.adminAllowlistItems.appendChild(li);
+    }
+  }
+
+  async function openAdminModal() {
+    dom.adminErrorMsg.classList.add("hidden");
+    dom.adminModalBackdrop.classList.remove("hidden");
+    try {
+      const resp = await fetch("/api/admin/allowlist");
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.detail || "Sem permissão de administrador.");
+      renderAdminAllowlist(data);
+      dom.adminEntryInput.focus();
+    } catch (err) {
+      dom.adminErrorMsg.textContent = err.message || "Falha ao carregar allowlist.";
+      dom.adminErrorMsg.classList.remove("hidden");
+    }
+  }
+
+  function closeAdminModal() {
+    dom.adminModalBackdrop.classList.add("hidden");
+    dom.adminEntryInput.value = "";
+    dom.adminErrorMsg.classList.add("hidden");
+  }
+
+  async function addAllowlistEntry(entry) {
+    dom.adminErrorMsg.classList.add("hidden");
+    dom.adminAddBtn.disabled = true;
+    try {
+      const resp = await fetch("/api/admin/allowlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entry }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.detail || "Não foi possível liberar este acesso.");
+      renderAdminAllowlist(data);
+      dom.adminEntryInput.value = "";
+      showSnackbar(`Acesso liberado para ${entry}`);
+    } catch (err) {
+      dom.adminErrorMsg.textContent = err.message || "Erro ao adicionar entrada.";
+      dom.adminErrorMsg.classList.remove("hidden");
+    } finally {
+      dom.adminAddBtn.disabled = false;
+    }
+  }
+
+  async function revokeAllowlistEntry(entry, btnEl) {
+    dom.adminErrorMsg.classList.add("hidden");
+    btnEl.disabled = true;
+    try {
+      const resp = await fetch("/api/admin/allowlist", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entry }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.detail || "Não foi possível revogar acesso.");
+      renderAdminAllowlist(data);
+      showSnackbar(`Acesso revogado para ${entry}`);
+    } catch (err) {
+      dom.adminErrorMsg.textContent = err.message || "Erro ao revogar acesso.";
+      dom.adminErrorMsg.classList.remove("hidden");
+      btnEl.disabled = false;
+    }
   }
 
   // ------------------------------------------------------------------------
@@ -1141,6 +1261,22 @@
         initGoogleSignInButton(activeGoogleClientId);
       }
       showAuthOverlay("");
+    });
+
+    dom.openAdminBtn.addEventListener("click", openAdminModal);
+    dom.closeAdminModalBtn.addEventListener("click", closeAdminModal);
+    dom.adminModalBackdrop.addEventListener("click", (e) => {
+      if (e.target === dom.adminModalBackdrop) closeAdminModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !dom.adminModalBackdrop.classList.contains("hidden")) {
+        closeAdminModal();
+      }
+    });
+    dom.adminAddForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const val = dom.adminEntryInput.value.trim();
+      if (val) addAllowlistEntry(val);
     });
   }
 

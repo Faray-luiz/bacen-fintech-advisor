@@ -1,15 +1,15 @@
-"""Authentication gate for Cloud Run Web UI: Google Sign-In (GIS OIDC) + Email Allowlist
-with optional access-token fallback and per-user isolated HMAC-signed ``HttpOnly`` cookies.
+"""Authentication & Admin Allowlist gate for Cloud Run Web UI.
 
-Configuration (12-factor / Google Secret Manager):
-
-* ``GOOGLE_OAUTH_CLIENT_ID``: Public Google OAuth 2.0 Web Client ID (enables Sign in with Google).
-* ``UI_ALLOWED_EMAILS_SECRET_ID`` (default ``bacen-ui-allowed-emails`` when Google Sign-In is
-  enabled) or ``UI_ALLOWED_EMAILS`` (local dev/tests): newline/comma-separated allowlist of
-  emails (e.g. ``alice@gmail.com``) or domain rules (``@company.com``). Refreshed from
-  Secret Manager every 60 seconds so adding or revoking users works with zero redeploy.
-* ``UI_AUTH_SECRET_ID`` / ``UI_ACCESS_TOKEN``: Secret Manager signing key for HMAC-SHA256
-  session cookies (and optional password/token login when ``UI_ALLOW_TOKEN_LOGIN=true``).
+Supports:
+* **Google Sign-In (Google Identity Services OIDC ID token)** verified cryptographically
+  via ``google.oauth2.id_token.verify_oauth2_token``.
+* **Secret Manager Email/Domain Allowlist** (``UI_ALLOWED_EMAILS_SECRET_ID``, default
+  ``bacen-ui-allowed-emails``) with 60-second TTL cache, instant invalidation on admin
+  edits, and live session revocation.
+* **Admin Panel Authorization** (``UI_ADMIN_EMAILS``): designated admins can grant and
+  revoke emails or ``@domain`` rules directly from the Web UI; admins are protected
+  against accidental self-lockout and changes persist durably to Google Secret Manager.
+* **Optional Access-Token Fallback** (``UI_AUTH_SECRET_ID`` / ``UI_ACCESS_TOKEN``).
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ import hmac
 import json
 import os
 import re
+import threading
 import time
 from collections import defaultdict, deque
 from collections.abc import Callable
@@ -28,7 +29,7 @@ from typing import Any
 
 from fastapi import Request, Response
 
-from bacen_advisor.config import is_managed_runtime
+from bacen_advisor.config import get_settings, is_managed_runtime
 from bacen_advisor.secrets import SecretNotFoundError, get_secret
 
 SESSION_COOKIE_NAME = "bacen_ui_session"
@@ -36,6 +37,9 @@ SESSION_TTL_SECONDS = 12 * 60 * 60  # 12 hours
 _ALLOWLIST_TTL_SECONDS = 60.0
 _RATE_LIMIT_MAX_FAILURES = 8
 _RATE_LIMIT_WINDOW_SECONDS = 10 * 60
+
+_EMAIL_RE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$")
+_DOMAIN_RE = re.compile(r"^@[a-z0-9.-]+\.[a-z]{2,}$")
 
 
 @dataclass(frozen=True)
@@ -63,6 +67,17 @@ def _user_id_from_email(email: str) -> str:
     return clean[:64] or "google_user"
 
 
+def validate_allowlist_entry(raw_entry: str) -> str:
+    """Validates and normalizes an email address or ``@domain`` rule."""
+    clean = (raw_entry or "").strip().lower()
+    if _EMAIL_RE.match(clean) or _DOMAIN_RE.match(clean):
+        return clean
+    raise ValueError(
+        "Formato inválido. Informe um e-mail completo (ex.: nome@gmail.com) "
+        "ou um domínio iniciado por @ (ex.: @empresa.com)."
+    )
+
+
 def _parse_allowlist(raw: str) -> tuple[set[str], set[str]]:
     """Parses exact emails and ``@domain`` rules from newline/comma/semicolon-separated text."""
     emails: set[str] = set()
@@ -71,18 +86,21 @@ def _parse_allowlist(raw: str) -> tuple[set[str], set[str]]:
         entry = line.split("#", 1)[0].strip().lower()
         if not entry:
             continue
-        if entry.startswith("@") and len(entry) > 2:
+        if _DOMAIN_RE.match(entry):
             domains.add(entry)
-        elif "@" in entry:
+        elif _EMAIL_RE.match(entry):
             emails.add(entry)
     return emails, domains
+
+
+def _serialize_allowlist(emails: set[str], domains: set[str]) -> str:
+    entries = sorted(domains) + sorted(emails)
+    return "\n".join(entries) + ("\n" if entries else "")
 
 
 def _fetch_secret_uncached(secret_id: str) -> str:
     """Reads latest Secret Manager version without permanent lru_cache (supports live revocation)."""
     from google.cloud import secretmanager
-
-    from bacen_advisor.config import get_settings
 
     project_id = get_settings().project_id
     if not project_id:
@@ -90,6 +108,20 @@ def _fetch_secret_uncached(secret_id: str) -> str:
     client = secretmanager.SecretManagerServiceClient()
     name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
     return client.access_secret_version(request={"name": name}).payload.data.decode("utf-8").strip()
+
+
+def _write_secret_version(secret_id: str, payload: str) -> None:
+    """Writes a new durable version of ``secret_id`` in Google Secret Manager."""
+    from google.cloud import secretmanager
+
+    project_id = get_settings().project_id
+    if not project_id:
+        raise SecretNotFoundError("GOOGLE_CLOUD_PROJECT is not set.")
+    client = secretmanager.SecretManagerServiceClient()
+    parent = f"projects/{project_id}/secrets/{secret_id}"
+    client.add_secret_version(
+        request={"parent": parent, "payload": {"data": payload.encode("utf-8")}}
+    )
 
 
 def _verify_google_id_token_default(credential: str, client_id: str) -> dict[str, Any]:
@@ -108,7 +140,7 @@ def _verify_google_id_token_default(credential: str, client_id: str) -> dict[str
 
 
 class AccessGate:
-    """Supports Google Sign-In (OIDC ID token + email allowlist) and optional access-token login."""
+    """Supports Google Sign-In (OIDC + Secret Manager allowlist), Admin Panel & token fallback."""
 
     def __init__(
         self,
@@ -116,6 +148,7 @@ class AccessGate:
         access_token: str | None = None,
         google_client_id: str | None = None,
         allowed_emails: list[str] | None = None,
+        admin_emails: list[str] | None = None,
         allow_token_login: bool | None = None,
         google_verifier: Callable[[str, str], dict[str, Any]] | None = None,
         enabled_override: bool | None = None,
@@ -123,11 +156,13 @@ class AccessGate:
         self._explicit_token = access_token
         self._explicit_google_client_id = google_client_id
         self._explicit_allowed_emails = allowed_emails
+        self._explicit_admin_emails = admin_emails
         self._allow_token_login_override = allow_token_login
         self._google_verifier = google_verifier or _verify_google_id_token_default
         self._enabled_override = enabled_override
         self._failures: dict[str, deque[float]] = defaultdict(deque)
         self._allowlist_cache: tuple[float, set[str], set[str]] | None = None
+        self._allowlist_lock = threading.Lock()
 
     def _resolve_google_client_id(self) -> str | None:
         if self._enabled_override is False:
@@ -136,6 +171,14 @@ class AccessGate:
             return self._explicit_google_client_id.strip() or None
         val = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
         return val or None
+
+    def _resolve_admin_emails(self) -> set[str]:
+        if self._explicit_admin_emails is not None:
+            emails, _ = _parse_allowlist("\n".join(self._explicit_admin_emails))
+            return emails
+        raw = os.getenv("UI_ADMIN_EMAILS", "").strip()
+        emails, _ = _parse_allowlist(raw)
+        return emails
 
     def _resolve_signing_secret(self) -> str | None:
         if self._enabled_override is False:
@@ -157,32 +200,41 @@ class AccessGate:
             return env_token
         return None
 
-    def _resolve_allowlist(self) -> tuple[set[str], set[str]]:
+    def _resolve_allowlist(self, *, force_refresh: bool = False) -> tuple[set[str], set[str]]:
         if self._explicit_allowed_emails is not None:
             return _parse_allowlist("\n".join(self._explicit_allowed_emails))
 
-        now = time.monotonic()
-        if self._allowlist_cache and (now - self._allowlist_cache[0]) < _ALLOWLIST_TTL_SECONDS:
-            return self._allowlist_cache[1], self._allowlist_cache[2]
+        with self._allowlist_lock:
+            now = time.monotonic()
+            if (
+                not force_refresh
+                and self._allowlist_cache
+                and (now - self._allowlist_cache[0]) < _ALLOWLIST_TTL_SECONDS
+            ):
+                return set(self._allowlist_cache[1]), set(self._allowlist_cache[2])
 
-        env_list = os.getenv("UI_ALLOWED_EMAILS", "").strip()
-        secret_id = os.getenv("UI_ALLOWED_EMAILS_SECRET_ID", "").strip()
-        raw = ""
-        if env_list and not is_managed_runtime():
-            raw = env_list
-        elif secret_id:
-            try:
-                raw = _fetch_secret_uncached(secret_id)
-            except Exception:  # noqa: BLE001
-                if self._allowlist_cache:
-                    return self._allowlist_cache[1], self._allowlist_cache[2]
-                raw = ""
-        elif env_list:
-            raw = env_list
+            env_list = os.getenv("UI_ALLOWED_EMAILS", "").strip()
+            secret_id = os.getenv("UI_ALLOWED_EMAILS_SECRET_ID", "").strip()
+            raw = ""
+            if env_list and not is_managed_runtime():
+                raw = env_list
+            elif secret_id:
+                try:
+                    raw = _fetch_secret_uncached(secret_id)
+                except Exception:  # noqa: BLE001
+                    if self._allowlist_cache:
+                        return set(self._allowlist_cache[1]), set(self._allowlist_cache[2])
+                    raw = ""
+            elif env_list:
+                raw = env_list
 
-        emails, domains = _parse_allowlist(raw)
-        self._allowlist_cache = (now, emails, domains)
-        return emails, domains
+            emails, domains = _parse_allowlist(raw)
+            self._allowlist_cache = (now, set(emails), set(domains))
+            return emails, domains
+
+    def invalidate_allowlist_cache(self) -> None:
+        with self._allowlist_lock:
+            self._allowlist_cache = None
 
     @property
     def google_client_id(self) -> str | None:
@@ -204,7 +256,6 @@ class AccessGate:
         env_flag = os.getenv("UI_ALLOW_TOKEN_LOGIN")
         if env_flag is not None:
             return env_flag.strip().lower() in {"1", "true", "yes", "on"}
-        # When Google Sign-In is configured, disable password fallback unless explicitly enabled.
         return not self.google_enabled
 
     @property
@@ -213,11 +264,68 @@ class AccessGate:
             return False
         return self.google_enabled or self.token_login_enabled
 
+    def is_admin(self, user: AuthenticatedUser | None) -> bool:
+        if not user or not user.email or user.auth_method != "google":
+            return False
+        return user.email.strip().lower() in self._resolve_admin_emails()
+
+    def get_allowlist_snapshot(self, *, force_refresh: bool = False) -> dict[str, Any]:
+        emails, domains = self._resolve_allowlist(force_refresh=force_refresh)
+        admins = sorted(self._resolve_admin_emails())
+        secret_id = os.getenv("UI_ALLOWED_EMAILS_SECRET_ID", "").strip()
+        storage = (
+            "secret_manager"
+            if (self._explicit_allowed_emails is None and secret_id and (is_managed_runtime() or not os.getenv("UI_ALLOWED_EMAILS")))
+            else "memory"
+        )
+        return {
+            "admins": admins,
+            "emails": sorted(emails | set(admins)),
+            "domains": sorted(domains),
+            "storage": storage,
+            "secret_id": secret_id if storage == "secret_manager" else None,
+        }
+
+    def _persist_allowlist(self, emails: set[str], domains: set[str]) -> None:
+        if self._explicit_allowed_emails is not None:
+            self._explicit_allowed_emails[:] = sorted(domains) + sorted(emails)
+            return
+
+        secret_id = os.getenv("UI_ALLOWED_EMAILS_SECRET_ID", "").strip()
+        payload = _serialize_allowlist(emails, domains)
+        if secret_id and (is_managed_runtime() or not os.getenv("UI_ALLOWED_EMAILS")):
+            _write_secret_version(secret_id, payload)
+        else:
+            os.environ["UI_ALLOWED_EMAILS"] = payload
+        self.invalidate_allowlist_cache()
+
+    def add_allowlist_entry(self, raw_entry: str) -> dict[str, Any]:
+        entry = validate_allowlist_entry(raw_entry)
+        emails, domains = self._resolve_allowlist(force_refresh=True)
+        if entry.startswith("@"):
+            domains.add(entry)
+        else:
+            emails.add(entry)
+        self._persist_allowlist(emails, domains)
+        return self.get_allowlist_snapshot(force_refresh=True)
+
+    def remove_allowlist_entry(self, raw_entry: str) -> dict[str, Any]:
+        entry = validate_allowlist_entry(raw_entry)
+        admins = self._resolve_admin_emails()
+        if entry in admins:
+            raise PermissionError(
+                f"'{entry}' é um administrador protegido e não pode ser removido pelo painel."
+            )
+        emails, domains = self._resolve_allowlist(force_refresh=True)
+        emails.discard(entry)
+        domains.discard(entry)
+        self._persist_allowlist(emails, domains)
+        return self.get_allowlist_snapshot(force_refresh=True)
+
     def _effective_signing_key(self) -> bytes:
         secret = self._resolve_signing_secret()
         if secret:
             return hashlib.sha256(f"bacen-ui-hmac-v2:{secret}".encode()).digest()
-        # Deterministic fallback only if Google Sign-In runs without explicit signing secret.
         client_id = self._resolve_google_client_id() or "local"
         return hashlib.sha256(f"bacen-ui-hmac-v2-google:{client_id}".encode()).digest()
 
@@ -228,6 +336,9 @@ class AccessGate:
         norm = email.strip().lower()
         if not norm or "@" not in norm:
             return False
+        # Admins are always permitted to prevent accidental lockout.
+        if norm in self._resolve_admin_emails():
+            return True
         emails, domains = self._resolve_allowlist()
         if norm in emails:
             return True
@@ -263,10 +374,7 @@ class AccessGate:
         )
 
     def verify_google_credential(self, credential: str) -> tuple[AuthenticatedUser | None, str]:
-        """Verifies a Google ID token and checks email allowlist.
-
-        Returns ``(AuthenticatedUser, "")`` on success or ``(None, reason_code)``.
-        """
+        """Verifies a Google ID token and checks email allowlist."""
         client_id = self._resolve_google_client_id()
         if not client_id:
             return None, "google_disabled"
@@ -339,7 +447,6 @@ class AccessGate:
 
         method = str(data.get("m") or "token")
         email = str(data.get("e") or "").strip().lower()
-        # Live revocation: re-check allowlist on every request for Google-authenticated sessions.
         if method == "google" and not self.is_email_allowed(email):
             return None
         if method == "token" and not self.token_login_enabled:
