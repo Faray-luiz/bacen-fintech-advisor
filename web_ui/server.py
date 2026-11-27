@@ -21,13 +21,14 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from google.genai import types
 from pydantic import BaseModel, Field
 
+from .auth import AccessGate
 from .pdf_exporter import PdfReportMetadata, generate_executive_pdf
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -66,6 +67,12 @@ _AGENT_STAGE_LABELS: dict[str, tuple[str, str]] = {
 # --------------------------------------------------------------------------------------
 # Request / Response Schemas
 # --------------------------------------------------------------------------------------
+
+
+class LoginRequest(BaseModel):
+    """Payload for ``POST /api/auth/login``."""
+
+    token: str = Field(min_length=1, max_length=256)
 
 
 class ConfirmationPayload(BaseModel):
@@ -426,9 +433,11 @@ def create_app(
     session_service: Any | None = None,
     runner: Any | None = None,
     app_name: str | None = None,
+    access_token: str | None = None,
 ) -> FastAPI:
     """Builds the FastAPI application serving the Google-standard Web UI & PDF export API."""
     runtime = _AgentRuntime(session_service=session_service, runner=runner, app_name=app_name)
+    gate = AccessGate(access_token=access_token)
 
     api = FastAPI(
         title="Bacen Fintech Advisor — Google-Standard Web UI",
@@ -436,6 +445,25 @@ def create_app(
         docs_url="/api/docs",
         redoc_url=None,
     )
+
+    # Enforce access-token cookie on all /api/* routes when UI auth is enabled.
+    _PUBLIC_API_PATHS = {"/api/auth/status", "/api/auth/login", "/api/auth/logout"}
+
+    @api.middleware("http")
+    async def _require_ui_auth(request: Request, call_next):
+        path = request.url.path
+        if (
+            gate.enabled
+            and path.startswith("/api/")
+            and path not in _PUBLIC_API_PATHS
+            and request.method != "OPTIONS"
+            and not gate.is_authenticated(request)
+        ):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Autenticação obrigatória. Informe o token de acesso."},
+            )
+        return await call_next(request)
 
     # Support local dev & corporate proxy origins seamlessly.
     api.add_middleware(
@@ -463,6 +491,39 @@ def create_app(
     @api.get("/healthz", include_in_schema=False)
     async def liveness() -> dict[str, str]:
         return {"status": "ok"}
+
+    @api.get("/api/auth/status")
+    async def auth_status(request: Request) -> dict[str, bool]:
+        enabled = gate.enabled
+        return {
+            "auth_enabled": enabled,
+            "authenticated": gate.is_authenticated(request) if enabled else True,
+        }
+
+    @api.post("/api/auth/login")
+    async def auth_login(payload: LoginRequest, request: Request, response: Response) -> dict[str, Any]:
+        if not gate.enabled:
+            return {"status": "ok", "auth_enabled": False}
+        client_ip = (
+            request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+            or (request.client.host if request.client else "unknown")
+        )
+        if gate.is_rate_limited(client_ip):
+            raise HTTPException(
+                status_code=429,
+                detail="Muitas tentativas inválidas. Aguarde alguns minutos e tente novamente.",
+            )
+        if not gate.verify_password(payload.token):
+            gate.record_failure(client_ip)
+            raise HTTPException(status_code=401, detail="Senha ou token de acesso inválido.")
+        gate.clear_failures(client_ip)
+        gate.set_cookie(response, request)
+        return {"status": "ok", "authenticated": True}
+
+    @api.post("/api/auth/logout")
+    async def auth_logout(response: Response) -> dict[str, Any]:
+        gate.clear_cookie(response)
+        return {"status": "ok", "authenticated": False}
 
     @api.get("/api/health")
     async def health() -> dict[str, Any]:

@@ -28,6 +28,8 @@ UI_SERVICE_NAME="${UI_SERVICE_NAME:-bacen-advisor-ui}"
 UI_SA_NAME="${UI_SA_NAME:-bacen-advisor-ui-sa}"
 INGRESS="${INGRESS:-all}"
 SECRET_ID="${SECRET_ID:-bacen-mcp-url}"
+UI_AUTH_SECRET_ID="${UI_AUTH_SECRET_ID:-bacen-ui-access-token}"
+PUBLIC_WITH_APP_LOGIN="${PUBLIC_WITH_APP_LOGIN:-false}"
 MODEL_FLASH="${MODEL_FLASH:-gemini-3-flash-preview}"
 MODEL_PRO="${MODEL_PRO:-gemini-3.1-pro-preview}"
 PII_MODE="${PII_MODE:-regex}"
@@ -120,6 +122,23 @@ ${GCLOUD} secrets add-iam-policy-binding "${SECRET_ID}" \
   --role="roles/secretmanager.secretAccessor" \
   --quiet >/dev/null
 
+UI_AUTH_FLAG="--no-allow-unauthenticated"
+UI_EXTRA_ENV=""
+if [[ "${PUBLIC_WITH_APP_LOGIN}" == "true" ]]; then
+  echo "    Configuring app-level login secret (${UI_AUTH_SECRET_ID}) for direct browser access..."
+  if ! ${GCLOUD} secrets describe "${UI_AUTH_SECRET_ID}" --project "${PROJECT_ID}" >/dev/null 2>&1; then
+    echo "Error: secret '${UI_AUTH_SECRET_ID}' not found in ${PROJECT_ID}. Create it first with your UI access password." >&2
+    exit 1
+  fi
+  ${GCLOUD} secrets add-iam-policy-binding "${UI_AUTH_SECRET_ID}" \
+    --project "${PROJECT_ID}" \
+    --member="serviceAccount:${UI_SA}" \
+    --role="roles/secretmanager.secretAccessor" \
+    --quiet >/dev/null
+  UI_AUTH_FLAG="--allow-unauthenticated"
+  UI_EXTRA_ENV=",UI_AUTH_SECRET_ID=${UI_AUTH_SECRET_ID}"
+fi
+
 ${GCLOUD} run services add-iam-policy-binding "${MCP_SERVICE_NAME}" \
   --project "${PROJECT_ID}" \
   --region "${REGION}" \
@@ -135,7 +154,7 @@ ${GCLOUD} run deploy "${UI_SERVICE_NAME}" \
   --platform managed \
   --service-account "${UI_SA}" \
   --ingress "${INGRESS}" \
-  --no-allow-unauthenticated \
+  "${UI_AUTH_FLAG}" \
   --session-affinity \
   --memory 2Gi \
   --cpu 2 \
@@ -144,7 +163,7 @@ ${GCLOUD} run deploy "${UI_SERVICE_NAME}" \
   --min-instances 0 \
   --max-instances 5 \
   --quiet \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${VERTEX_LOCATION},GOOGLE_GENAI_USE_VERTEXAI=TRUE,MCP_URL_SECRET_ID=${SECRET_ID},MODEL_ROUTER=${MODEL_FLASH},MODEL_COLLECTOR=${MODEL_FLASH},MODEL_CRITIC=${MODEL_FLASH},MODEL_SUMMARIZER=${MODEL_FLASH},MODEL_ANALYST=${MODEL_PRO},MODEL_CONSULTANT=${MODEL_PRO},PII_REDACTION_MODE=${PII_MODE},ENABLE_CLOUD_TRACE=true,LOG_LEVEL=INFO"
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${VERTEX_LOCATION},GOOGLE_GENAI_USE_VERTEXAI=TRUE,MCP_URL_SECRET_ID=${SECRET_ID},MODEL_ROUTER=${MODEL_FLASH},MODEL_COLLECTOR=${MODEL_FLASH},MODEL_CRITIC=${MODEL_FLASH},MODEL_SUMMARIZER=${MODEL_FLASH},MODEL_ANALYST=${MODEL_PRO},MODEL_CONSULTANT=${MODEL_PRO},PII_REDACTION_MODE=${PII_MODE},ENABLE_CLOUD_TRACE=true,LOG_LEVEL=INFO${UI_EXTRA_ENV}"
 
 UI_URL="$(${GCLOUD} run services describe "${UI_SERVICE_NAME}" \
   --project "${PROJECT_ID}" \

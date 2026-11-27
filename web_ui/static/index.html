@@ -17,6 +17,56 @@
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
+  <!-- Google Material Design 3 Access Gate Overlay (shown only when UI auth is enabled) -->
+  <div class="auth-overlay hidden" id="authOverlay" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <div class="auth-card">
+      <div class="auth-accent-bar" aria-hidden="true">
+        <span class="seg-blue"></span><span class="seg-red"></span><span class="seg-yellow"></span><span class="seg-green"></span>
+      </div>
+      <div class="auth-card-body">
+        <div class="auth-brand">
+          <div class="brand-emblem" aria-hidden="true">
+            <span class="dot dot-blue"></span>
+            <span class="dot dot-red"></span>
+            <span class="dot dot-yellow"></span>
+            <span class="dot dot-green"></span>
+          </div>
+          <span class="auth-brand-label">Bacen Fintech Advisor</span>
+        </div>
+        <h1 class="auth-title" id="authTitle">Acesso protegido</h1>
+        <p class="auth-subtitle">
+          Informe a senha/token de acesso para abrir o painel de inteligência competitiva BCB &amp; Consultor Google Cloud.
+        </p>
+
+        <form id="authForm" class="auth-form">
+          <label class="auth-label" for="authTokenInput">Senha / Token de acesso</label>
+          <div class="auth-input-wrap">
+            <input
+              id="authTokenInput"
+              type="password"
+              class="auth-input"
+              autocomplete="current-password"
+              placeholder="Digite o token de acesso..."
+              required
+            />
+            <button type="button" class="icon-btn" id="toggleTokenVisibilityBtn" title="Mostrar ou ocultar" aria-label="Mostrar ou ocultar token">
+              <span class="material-symbols-outlined">visibility</span>
+            </button>
+          </div>
+          <div class="auth-error hidden" id="authErrorMsg" role="alert"></div>
+          <button type="submit" class="auth-submit-btn" id="authSubmitBtn">
+            <span class="material-symbols-outlined">lock_open</span>
+            <span>Entrar</span>
+          </button>
+        </form>
+
+        <p class="auth-footer-note">
+          Autenticação via cookie HttpOnly assinado (HMAC-SHA256) · Segredo gerenciado no Google Secret Manager.
+        </p>
+      </div>
+    </div>
+  </div>
+
   <div class="app-shell" id="appShell">
     <!-- Mobile backdrop -->
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -97,6 +147,9 @@
           <button class="tonal-btn" id="toggleInspectorBtn" type="button" title="Abrir inspetor de agentes e auditoria">
             <span class="material-symbols-outlined">account_tree</span>
             <span class="hide-sm">Rastreamento</span>
+          </button>
+          <button class="icon-btn hidden" id="logoutBtn" type="button" title="Sair da sessão" aria-label="Sair da sessão">
+            <span class="material-symbols-outlined">logout</span>
           </button>
         </div>
       </header>

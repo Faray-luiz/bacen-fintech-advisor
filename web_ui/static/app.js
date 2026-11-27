@@ -24,6 +24,13 @@
 
   // DOM References
   const dom = {
+    authOverlay: document.getElementById("authOverlay"),
+    authForm: document.getElementById("authForm"),
+    authTokenInput: document.getElementById("authTokenInput"),
+    authErrorMsg: document.getElementById("authErrorMsg"),
+    authSubmitBtn: document.getElementById("authSubmitBtn"),
+    toggleTokenVisibilityBtn: document.getElementById("toggleTokenVisibilityBtn"),
+    logoutBtn: document.getElementById("logoutBtn"),
     appShell: document.getElementById("appShell"),
     sidebar: document.getElementById("sidebar"),
     sidebarBackdrop: document.getElementById("sidebarBackdrop"),
@@ -185,12 +192,56 @@
   }
 
   // ------------------------------------------------------------------------
+  // Auth Gate Helpers
+  // ------------------------------------------------------------------------
+
+  function showAuthOverlay(errorMsg) {
+    dom.authOverlay.classList.remove("hidden");
+    if (errorMsg) {
+      dom.authErrorMsg.textContent = errorMsg;
+      dom.authErrorMsg.classList.remove("hidden");
+    } else {
+      dom.authErrorMsg.classList.add("hidden");
+    }
+    setTimeout(() => dom.authTokenInput.focus(), 60);
+  }
+
+  function hideAuthOverlay() {
+    dom.authOverlay.classList.add("hidden");
+    dom.authErrorMsg.classList.add("hidden");
+    dom.authTokenInput.value = "";
+  }
+
+  async function checkAuthAndBoot() {
+    try {
+      const resp = await fetch("/api/auth/status");
+      if (resp.ok) {
+        const data = await resp.json();
+        dom.logoutBtn.classList.toggle("hidden", !data.auth_enabled);
+        if (data.auth_enabled && !data.authenticated) {
+          showAuthOverlay("");
+          return;
+        }
+      }
+    } catch (_err) {
+      // Fall through to standard health check.
+    }
+    hideAuthOverlay();
+    loadHealth();
+    loadSessions();
+  }
+
+  // ------------------------------------------------------------------------
   // API Calls
   // ------------------------------------------------------------------------
 
   async function loadHealth() {
     try {
       const resp = await fetch("/api/health");
+      if (resp.status === 401) {
+        showAuthOverlay("Sessão expirada. Faça login novamente.");
+        return;
+      }
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       if (data.models) {
@@ -298,6 +349,10 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (resp.status === 401) {
+        showAuthOverlay("Sessão expirada. Faça login novamente.");
+        return;
+      }
       if (!resp.ok) {
         throw new Error(`Erro HTTP ${resp.status} ao gerar PDF`);
       }
@@ -726,6 +781,10 @@
         body: JSON.stringify(bodyPayload),
       });
 
+      if (resp.status === 401) {
+        showAuthOverlay("Sessão expirada. Faça login novamente.");
+        throw new Error("Sessão expirada. Faça login novamente.");
+      }
       if (!resp.ok || !resp.body) {
         throw new Error(`Falha HTTP ${resp.status} ao conectar com o agente.`);
       }
@@ -926,6 +985,52 @@
       e.preventDefault();
       sendPrompt(dom.promptInput.value);
     });
+
+    dom.toggleTokenVisibilityBtn.addEventListener("click", () => {
+      const isPass = dom.authTokenInput.type === "password";
+      dom.authTokenInput.type = isPass ? "text" : "password";
+      dom.toggleTokenVisibilityBtn.querySelector("span").textContent = isPass
+        ? "visibility_off"
+        : "visibility";
+    });
+
+    dom.authForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const token = dom.authTokenInput.value.trim();
+      if (!token) return;
+      dom.authSubmitBtn.disabled = true;
+      dom.authErrorMsg.classList.add("hidden");
+      try {
+        const resp = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.detail || "Senha ou token inválido.");
+        }
+        hideAuthOverlay();
+        dom.logoutBtn.classList.remove("hidden");
+        showSnackbar("Acesso liberado.");
+        loadHealth();
+        loadSessions();
+      } catch (err) {
+        showAuthOverlay(err.message || "Falha na autenticação.");
+      } finally {
+        dom.authSubmitBtn.disabled = false;
+      }
+    });
+
+    dom.logoutBtn.addEventListener("click", async () => {
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+      state.activeSessionId = null;
+      state.turns = [];
+      state.sessions = [];
+      renderAllTurns();
+      renderSessionList();
+      showAuthOverlay("");
+    });
   }
 
   // ------------------------------------------------------------------------
@@ -934,7 +1039,6 @@
   document.addEventListener("DOMContentLoaded", () => {
     bindEvents();
     updateSendButtonState();
-    loadHealth();
-    loadSessions();
+    checkAuthAndBoot();
   });
 })();

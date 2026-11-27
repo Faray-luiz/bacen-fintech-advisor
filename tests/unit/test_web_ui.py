@@ -242,3 +242,48 @@ def test_web_ui_chat_stream_emits_pipeline_and_critic_events():
     # Intermediate analyst draft must NOT replace report_publisher final text.
     assert "Rascunho intermediário do analista" not in body
     assert "event: done" in body
+
+
+def test_web_ui_access_gate_enforces_login_cookie_and_rate_limit():
+    app = create_app(
+        session_service=InMemorySessionService(),
+        app_name="bacen_advisor",
+        access_token="SuperSecretDemoToken!",
+    )
+    client = TestClient(app)
+
+    # Unauthenticated status reports auth enabled + not logged in.
+    st = client.get("/api/auth/status")
+    assert st.status_code == 200
+    assert st.json() == {"auth_enabled": True, "authenticated": False}
+
+    # Protected endpoints return 401 before login.
+    assert client.get("/api/health").status_code == 401
+    assert client.get("/api/sessions").status_code == 401
+    assert client.post("/api/chat/stream", json={"message": "Oi"}).status_code == 401
+    assert client.post("/api/export/pdf", json={"markdown": "# Test"}).status_code == 401
+
+    # Wrong token is rejected with 401.
+    bad = client.post("/api/auth/login", json={"token": "wrong-token"})
+    assert bad.status_code == 401
+
+    # Correct token sets HttpOnly session cookie and unlocks protected endpoints.
+    ok = client.post("/api/auth/login", json={"token": "SuperSecretDemoToken!"})
+    assert ok.status_code == 200
+    assert ok.json()["authenticated"] is True
+    assert "bacen_ui_session" in ok.cookies
+
+    assert client.get("/api/auth/status").json() == {"auth_enabled": True, "authenticated": True}
+    assert client.get("/api/health").status_code == 200
+    assert client.get("/api/sessions").status_code == 200
+
+    # Logout clears cookie and locks endpoints again.
+    out = client.post("/api/auth/logout")
+    assert out.status_code == 200
+    assert client.get("/api/sessions").status_code == 401
+
+    # Brute-force rate limit triggers 429 after repeated failures.
+    for _ in range(8):
+        r = client.post("/api/auth/login", json={"token": "bad"})
+        assert r.status_code == 401
+    assert client.post("/api/auth/login", json={"token": "SuperSecretDemoToken!"}).status_code == 429
