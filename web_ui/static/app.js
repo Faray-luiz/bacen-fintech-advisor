@@ -25,11 +25,19 @@
   // DOM References
   const dom = {
     authOverlay: document.getElementById("authOverlay"),
+    authSubtitle: document.getElementById("authSubtitle"),
+    googleSignInWrap: document.getElementById("googleSignInWrap"),
+    googleSignInBtn: document.getElementById("googleSignInBtn"),
+    authDivider: document.getElementById("authDivider"),
     authForm: document.getElementById("authForm"),
     authTokenInput: document.getElementById("authTokenInput"),
     authErrorMsg: document.getElementById("authErrorMsg"),
     authSubmitBtn: document.getElementById("authSubmitBtn"),
     toggleTokenVisibilityBtn: document.getElementById("toggleTokenVisibilityBtn"),
+    userPill: document.getElementById("userPill"),
+    userAvatarImg: document.getElementById("userAvatarImg"),
+    userAvatarFallback: document.getElementById("userAvatarFallback"),
+    userPillName: document.getElementById("userPillName"),
     logoutBtn: document.getElementById("logoutBtn"),
     appShell: document.getElementById("appShell"),
     sidebar: document.getElementById("sidebar"),
@@ -192,8 +200,31 @@
   }
 
   // ------------------------------------------------------------------------
-  // Auth Gate Helpers
+  // Auth Gate Helpers (Google Sign-In + Optional Token Fallback)
   // ------------------------------------------------------------------------
+
+  let googleButtonInitialized = false;
+  let activeGoogleClientId = null;
+
+  function renderUserPill(user) {
+    if (!user || !user.email) {
+      dom.userPill.classList.add("hidden");
+      return;
+    }
+    dom.userPill.classList.remove("hidden");
+    dom.userPill.title = user.email;
+    const displayName = user.name || user.email.split("@")[0];
+    dom.userPillName.textContent = displayName;
+    if (user.picture && /^https:\/\//i.test(user.picture)) {
+      dom.userAvatarImg.src = user.picture;
+      dom.userAvatarImg.classList.remove("hidden");
+      dom.userAvatarFallback.classList.add("hidden");
+    } else {
+      dom.userAvatarImg.classList.add("hidden");
+      dom.userAvatarFallback.textContent = displayName.charAt(0).toUpperCase();
+      dom.userAvatarFallback.classList.remove("hidden");
+    }
+  }
 
   function showAuthOverlay(errorMsg) {
     dom.authOverlay.classList.remove("hidden");
@@ -203,7 +234,9 @@
     } else {
       dom.authErrorMsg.classList.add("hidden");
     }
-    setTimeout(() => dom.authTokenInput.focus(), 60);
+    if (!dom.authForm.classList.contains("hidden")) {
+      setTimeout(() => dom.authTokenInput.focus(), 60);
+    }
   }
 
   function hideAuthOverlay() {
@@ -212,12 +245,83 @@
     dom.authTokenInput.value = "";
   }
 
+  async function handleGoogleCredentialResponse(response) {
+    if (!response || !response.credential) return;
+    dom.authErrorMsg.classList.add("hidden");
+    try {
+      const resp = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: response.credential }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        throw new Error(data.detail || "Conta Google não autorizada.");
+      }
+      hideAuthOverlay();
+      dom.logoutBtn.classList.remove("hidden");
+      renderUserPill(data.user);
+      showSnackbar(`Bem-vindo(a), ${(data.user && data.user.name) || "usuário"}!`);
+      loadHealth();
+      loadSessions();
+    } catch (err) {
+      showAuthOverlay(err.message || "Falha ao validar login com o Google.");
+    }
+  }
+
+  function initGoogleSignInButton(clientId, attempt = 0) {
+    if (!clientId) return;
+    activeGoogleClientId = clientId;
+    if (window.google && window.google.accounts && window.google.accounts.id) {
+      if (!googleButtonInitialized) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredentialResponse,
+          ux_mode: "popup",
+        });
+        dom.googleSignInBtn.innerHTML = "";
+        window.google.accounts.id.renderButton(dom.googleSignInBtn, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          text: "signin_with",
+          shape: "pill",
+          logo_alignment: "left",
+          width: 320,
+          locale: "pt-BR",
+        });
+        googleButtonInitialized = true;
+      }
+      return;
+    }
+    if (attempt < 40) {
+      setTimeout(() => initGoogleSignInButton(clientId, attempt + 1), 150);
+    } else {
+      showAuthOverlay("Não foi possível carregar o botão 'Entrar com Google'. Recarregue a página.");
+    }
+  }
+
   async function checkAuthAndBoot() {
     try {
       const resp = await fetch("/api/auth/status");
       if (resp.ok) {
         const data = await resp.json();
         dom.logoutBtn.classList.toggle("hidden", !data.auth_enabled);
+        renderUserPill(data.user);
+
+        const hasGoogle = Boolean(data.google_client_id);
+        const hasToken = Boolean(data.token_login_enabled);
+        dom.googleSignInWrap.classList.toggle("hidden", !hasGoogle);
+        dom.authForm.classList.toggle("hidden", !hasToken);
+        dom.authDivider.classList.toggle("hidden", !(hasGoogle && hasToken));
+
+        if (!hasGoogle && hasToken) {
+          dom.authSubtitle.textContent =
+            "Informe a senha/token de acesso para abrir o painel de inteligência competitiva BCB & Consultor Google Cloud.";
+        }
+        if (hasGoogle) {
+          initGoogleSignInButton(data.google_client_id);
+        }
         if (data.auth_enabled && !data.authenticated) {
           showAuthOverlay("");
           return;
@@ -1023,12 +1127,19 @@
     });
 
     dom.logoutBtn.addEventListener("click", async () => {
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        window.google.accounts.id.disableAutoSelect();
+      }
       await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
       state.activeSessionId = null;
       state.turns = [];
       state.sessions = [];
+      renderUserPill(null);
       renderAllTurns();
       renderSessionList();
+      if (activeGoogleClientId) {
+        initGoogleSignInButton(activeGoogleClientId);
+      }
       showAuthOverlay("");
     });
   }

@@ -1625,12 +1625,84 @@ textarea {
 }
 
 .auth-error {
-  padding: 9px 12px;
+  margin-top: 12px;
+  padding: 10px 12px;
   border-radius: 10px;
   background: var(--error-bg);
   color: var(--error-fg);
   font-size: 13px;
   font-weight: 500;
+}
+
+.google-signin-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 6px;
+}
+
+.google-signin-btn-host {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px 3px 4px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface-low);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-avatar-fallback {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--google-blue);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-pill-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .auth-submit-btn {

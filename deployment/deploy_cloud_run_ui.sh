@@ -29,6 +29,9 @@ UI_SA_NAME="${UI_SA_NAME:-bacen-advisor-ui-sa}"
 INGRESS="${INGRESS:-all}"
 SECRET_ID="${SECRET_ID:-bacen-mcp-url}"
 UI_AUTH_SECRET_ID="${UI_AUTH_SECRET_ID:-bacen-ui-access-token}"
+UI_ALLOWED_EMAILS_SECRET_ID="${UI_ALLOWED_EMAILS_SECRET_ID:-bacen-ui-allowed-emails}"
+GOOGLE_OAUTH_CLIENT_ID="${GOOGLE_OAUTH_CLIENT_ID:-}"
+UI_ALLOW_TOKEN_LOGIN="${UI_ALLOW_TOKEN_LOGIN:-false}"
 PUBLIC_WITH_APP_LOGIN="${PUBLIC_WITH_APP_LOGIN:-false}"
 MODEL_FLASH="${MODEL_FLASH:-gemini-3-flash-preview}"
 MODEL_PRO="${MODEL_PRO:-gemini-3.1-pro-preview}"
@@ -125,9 +128,9 @@ ${GCLOUD} secrets add-iam-policy-binding "${SECRET_ID}" \
 UI_AUTH_FLAG="--no-allow-unauthenticated"
 UI_EXTRA_ENV=""
 if [[ "${PUBLIC_WITH_APP_LOGIN}" == "true" ]]; then
-  echo "    Configuring app-level login secret (${UI_AUTH_SECRET_ID}) for direct browser access..."
+  echo "    Configuring app-level login secrets for direct browser access..."
   if ! ${GCLOUD} secrets describe "${UI_AUTH_SECRET_ID}" --project "${PROJECT_ID}" >/dev/null 2>&1; then
-    echo "Error: secret '${UI_AUTH_SECRET_ID}' not found in ${PROJECT_ID}. Create it first with your UI access password." >&2
+    echo "Error: secret '${UI_AUTH_SECRET_ID}' not found in ${PROJECT_ID}. Create it first." >&2
     exit 1
   fi
   ${GCLOUD} secrets add-iam-policy-binding "${UI_AUTH_SECRET_ID}" \
@@ -136,7 +139,19 @@ if [[ "${PUBLIC_WITH_APP_LOGIN}" == "true" ]]; then
     --role="roles/secretmanager.secretAccessor" \
     --quiet >/dev/null
   UI_AUTH_FLAG="--allow-unauthenticated"
-  UI_EXTRA_ENV=",UI_AUTH_SECRET_ID=${UI_AUTH_SECRET_ID}"
+  UI_EXTRA_ENV=",UI_AUTH_SECRET_ID=${UI_AUTH_SECRET_ID},UI_ALLOW_TOKEN_LOGIN=${UI_ALLOW_TOKEN_LOGIN}"
+  if [[ -n "${GOOGLE_OAUTH_CLIENT_ID}" ]]; then
+    if ! ${GCLOUD} secrets describe "${UI_ALLOWED_EMAILS_SECRET_ID}" --project "${PROJECT_ID}" >/dev/null 2>&1; then
+      echo "Error: secret '${UI_ALLOWED_EMAILS_SECRET_ID}' not found in ${PROJECT_ID}. Create it with allowed emails." >&2
+      exit 1
+    fi
+    ${GCLOUD} secrets add-iam-policy-binding "${UI_ALLOWED_EMAILS_SECRET_ID}" \
+      --project "${PROJECT_ID}" \
+      --member="serviceAccount:${UI_SA}" \
+      --role="roles/secretmanager.secretAccessor" \
+      --quiet >/dev/null
+    UI_EXTRA_ENV="${UI_EXTRA_ENV},GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID},UI_ALLOWED_EMAILS_SECRET_ID=${UI_ALLOWED_EMAILS_SECRET_ID}"
+  fi
 fi
 
 ${GCLOUD} run services add-iam-policy-binding "${MCP_SERVICE_NAME}" \

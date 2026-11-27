@@ -255,7 +255,9 @@ def test_web_ui_access_gate_enforces_login_cookie_and_rate_limit():
     # Unauthenticated status reports auth enabled + not logged in.
     st = client.get("/api/auth/status")
     assert st.status_code == 200
-    assert st.json() == {"auth_enabled": True, "authenticated": False}
+    assert st.json()["auth_enabled"] is True
+    assert st.json()["authenticated"] is False
+    assert st.json()["token_login_enabled"] is True
 
     # Protected endpoints return 401 before login.
     assert client.get("/api/health").status_code == 401
@@ -273,7 +275,7 @@ def test_web_ui_access_gate_enforces_login_cookie_and_rate_limit():
     assert ok.json()["authenticated"] is True
     assert "bacen_ui_session" in ok.cookies
 
-    assert client.get("/api/auth/status").json() == {"auth_enabled": True, "authenticated": True}
+    assert client.get("/api/auth/status").json()["authenticated"] is True
     assert client.get("/api/health").status_code == 200
     assert client.get("/api/sessions").status_code == 200
 
@@ -287,3 +289,77 @@ def test_web_ui_access_gate_enforces_login_cookie_and_rate_limit():
         r = client.post("/api/auth/login", json={"token": "bad"})
         assert r.status_code == 401
     assert client.post("/api/auth/login", json={"token": "SuperSecretDemoToken!"}).status_code == 429
+
+
+def test_web_ui_google_signin_allowlist_user_isolation_and_live_revocation():
+    allowed = ["alice@gmail.com", "@partnerbank.com"]
+
+    def fake_verifier(credential: str, client_id: str):
+        assert client_id == "12345.apps.googleusercontent.com"
+        mapping = {
+            "tok-alice-000000000000": {
+                "iss": "https://accounts.google.com",
+                "email": "alice@gmail.com",
+                "email_verified": True,
+                "name": "Alice Silva",
+                "picture": "https://lh3.googleusercontent.com/alice",
+            },
+            "tok-bob-00000000000000": {
+                "iss": "https://accounts.google.com",
+                "email": "bob@partnerbank.com",
+                "email_verified": True,
+                "name": "Bob Costa",
+            },
+            "tok-intruder-000000000": {
+                "iss": "https://accounts.google.com",
+                "email": "stranger@other.com",
+                "email_verified": True,
+                "name": "Stranger",
+            },
+        }
+        if credential not in mapping:
+            raise ValueError("Invalid token")
+        return mapping[credential]
+
+    app = create_app(
+        session_service=InMemorySessionService(),
+        app_name="bacen_advisor",
+        access_token="signing-secret-only",
+        google_client_id="12345.apps.googleusercontent.com",
+        allowed_emails=allowed,
+        allow_token_login=False,
+        google_verifier=fake_verifier,
+    )
+
+    c_alice = TestClient(app)
+    c_bob = TestClient(app)
+
+    # Status advertises Google Sign-In and hides token login.
+    st = c_alice.get("/api/auth/status").json()
+    assert st["auth_enabled"] is True
+    assert st["google_client_id"] == "12345.apps.googleusercontent.com"
+    assert st["token_login_enabled"] is False
+    # Token login endpoint disabled with 403.
+    assert c_alice.post("/api/auth/login", json={"token": "signing-secret-only"}).status_code == 403
+
+    # Non-allowlisted email rejected with 403.
+    denied = c_alice.post("/api/auth/google", json={"credential": "tok-intruder-000000000"})
+    assert denied.status_code == 403
+    assert "stranger@other.com" in denied.json()["detail"]
+
+    # Alice signs in & creates a private session.
+    ok_a = c_alice.post("/api/auth/google", json={"credential": "tok-alice-000000000000"})
+    assert ok_a.status_code == 200
+    assert ok_a.json()["user"]["email"] == "alice@gmail.com"
+    alice_sid = c_alice.post("/api/sessions").json()["session_id"]
+
+    # Bob signs in via domain rule (@partnerbank.com) — MUST NOT see Alice's session!
+    ok_b = c_bob.post("/api/auth/google", json={"credential": "tok-bob-00000000000000"})
+    assert ok_b.status_code == 200
+    bob_sessions = c_bob.get("/api/sessions").json()["sessions"]
+    assert all(s["session_id"] != alice_sid for s in bob_sessions)
+    assert c_bob.get(f"/api/sessions/{alice_sid}").status_code == 404
+
+    # Live revocation: removing Alice from allowlist invalidates her existing cookie immediately.
+    allowed.remove("alice@gmail.com")
+    assert c_alice.get("/api/sessions").status_code == 401

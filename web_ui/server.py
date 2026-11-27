@@ -28,7 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from google.genai import types
 from pydantic import BaseModel, Field
 
-from .auth import AccessGate
+from .auth import AccessGate, AuthenticatedUser
 from .pdf_exporter import PdfReportMetadata, generate_executive_pdf
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +73,12 @@ class LoginRequest(BaseModel):
     """Payload for ``POST /api/auth/login``."""
 
     token: str = Field(min_length=1, max_length=256)
+
+
+class GoogleLoginRequest(BaseModel):
+    """Payload for ``POST /api/auth/google`` (Google Identity Services JWT credential)."""
+
+    credential: str = Field(min_length=16, max_length=8192)
 
 
 class ConfirmationPayload(BaseModel):
@@ -434,10 +440,20 @@ def create_app(
     runner: Any | None = None,
     app_name: str | None = None,
     access_token: str | None = None,
+    google_client_id: str | None = None,
+    allowed_emails: list[str] | None = None,
+    allow_token_login: bool | None = None,
+    google_verifier: Any | None = None,
 ) -> FastAPI:
     """Builds the FastAPI application serving the Google-standard Web UI & PDF export API."""
     runtime = _AgentRuntime(session_service=session_service, runner=runner, app_name=app_name)
-    gate = AccessGate(access_token=access_token)
+    gate = AccessGate(
+        access_token=access_token,
+        google_client_id=google_client_id,
+        allowed_emails=allowed_emails,
+        allow_token_login=allow_token_login,
+        google_verifier=google_verifier,
+    )
 
     api = FastAPI(
         title="Bacen Fintech Advisor — Google-Standard Web UI",
@@ -446,8 +462,8 @@ def create_app(
         redoc_url=None,
     )
 
-    # Enforce access-token cookie on all /api/* routes when UI auth is enabled.
-    _PUBLIC_API_PATHS = {"/api/auth/status", "/api/auth/login", "/api/auth/logout"}
+    # Enforce signed session cookie on all /api/* routes when UI auth is enabled.
+    _PUBLIC_API_PATHS = {"/api/auth/status", "/api/auth/login", "/api/auth/google", "/api/auth/logout"}
 
     @api.middleware("http")
     async def _require_ui_auth(request: Request, call_next):
@@ -457,12 +473,14 @@ def create_app(
             and path.startswith("/api/")
             and path not in _PUBLIC_API_PATHS
             and request.method != "OPTIONS"
-            and not gate.is_authenticated(request)
         ):
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Autenticação obrigatória. Informe o token de acesso."},
-            )
+            user = gate.get_authenticated_user(request)
+            if user is None:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Autenticação obrigatória. Faça login para continuar."},
+                )
+            request.state.auth_user = user
         return await call_next(request)
 
     # Support local dev & corporate proxy origins seamlessly.
@@ -477,7 +495,14 @@ def create_app(
     if STATIC_DIR.is_dir():
         api.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    def _resolve_user_id(x_user_id: str | None) -> str:
+    def _resolve_user_id(request: Request, x_user_id: str | None) -> str:
+        # When auth is active, ALWAYS bind sessions to the verified signed cookie identity.
+        if gate.enabled:
+            auth_user: AuthenticatedUser | None = getattr(request.state, "auth_user", None)
+            if auth_user is None:
+                auth_user = gate.get_authenticated_user(request)
+            if auth_user and auth_user.user_id:
+                return auth_user.user_id
         clean = re.sub(r"[^A-Za-z0-9_.-]", "_", (x_user_id or DEFAULT_USER_ID).strip())
         return clean[:64] or DEFAULT_USER_ID
 
@@ -493,17 +518,71 @@ def create_app(
         return {"status": "ok"}
 
     @api.get("/api/auth/status")
-    async def auth_status(request: Request) -> dict[str, bool]:
+    async def auth_status(request: Request) -> dict[str, Any]:
         enabled = gate.enabled
+        user = gate.get_authenticated_user(request) if enabled else None
         return {
             "auth_enabled": enabled,
-            "authenticated": gate.is_authenticated(request) if enabled else True,
+            "authenticated": (user is not None) if enabled else True,
+            "google_client_id": gate.google_client_id,
+            "token_login_enabled": gate.token_login_enabled,
+            "user": (
+                {
+                    "email": user.email,
+                    "name": user.name,
+                    "picture": user.picture,
+                    "auth_method": user.auth_method,
+                }
+                if user and user.email
+                else None
+            ),
+        }
+
+    @api.post("/api/auth/google")
+    async def auth_google(
+        payload: GoogleLoginRequest,
+        request: Request,
+        response: Response,
+    ) -> dict[str, Any]:
+        if not gate.google_enabled:
+            raise HTTPException(status_code=404, detail="Login com Google não está habilitado.")
+        client_ip = (
+            request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+            or (request.client.host if request.client else "unknown")
+        )
+        if gate.is_rate_limited(client_ip):
+            raise HTTPException(
+                status_code=429,
+                detail="Muitas tentativas inválidas. Aguarde alguns minutos e tente novamente.",
+            )
+        user, reason = await asyncio.to_thread(gate.verify_google_credential, payload.credential)
+        if user is None:
+            gate.record_failure(client_ip)
+            if reason.startswith("not_allowed:"):
+                denied_email = reason.split(":", 1)[1]
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Acesso não autorizado para {denied_email}. Solicite liberação ao administrador.",
+                )
+            raise HTTPException(status_code=401, detail="Credencial Google inválida ou expirada.")
+
+        gate.clear_failures(client_ip)
+        gate.set_cookie(response, request, user)
+        return {
+            "status": "ok",
+            "authenticated": True,
+            "user": {"email": user.email, "name": user.name, "picture": user.picture},
         }
 
     @api.post("/api/auth/login")
     async def auth_login(payload: LoginRequest, request: Request, response: Response) -> dict[str, Any]:
         if not gate.enabled:
             return {"status": "ok", "auth_enabled": False}
+        if not gate.token_login_enabled:
+            raise HTTPException(
+                status_code=403,
+                detail="Login por token está desativado. Utilize 'Fazer login com o Google'.",
+            )
         client_ip = (
             request.headers.get("x-forwarded-for", "").split(",")[0].strip()
             or (request.client.host if request.client else "unknown")
@@ -517,7 +596,11 @@ def create_app(
             gate.record_failure(client_ip)
             raise HTTPException(status_code=401, detail="Senha ou token de acesso inválido.")
         gate.clear_failures(client_ip)
-        gate.set_cookie(response, request)
+        gate.set_cookie(
+            response,
+            request,
+            AuthenticatedUser(user_id=DEFAULT_USER_ID, name="Acesso por Token", auth_method="token"),
+        )
         return {"status": "ok", "authenticated": True}
 
     @api.post("/api/auth/logout")
@@ -577,8 +660,11 @@ def create_app(
         }
 
     @api.get("/api/sessions")
-    async def list_sessions(x_user_id: str | None = Header(default=None)) -> dict[str, Any]:
-        user_id = _resolve_user_id(x_user_id)
+    async def list_sessions(
+        request: Request,
+        x_user_id: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        user_id = _resolve_user_id(request, x_user_id)
         svc = runtime.get_session_service()
         app_name_val = runtime.get_app_name()
         resp = await svc.list_sessions(app_name=app_name_val, user_id=user_id)
@@ -600,8 +686,11 @@ def create_app(
         return {"sessions": summaries}
 
     @api.post("/api/sessions")
-    async def create_session(x_user_id: str | None = Header(default=None)) -> dict[str, Any]:
-        user_id = _resolve_user_id(x_user_id)
+    async def create_session(
+        request: Request,
+        x_user_id: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        user_id = _resolve_user_id(request, x_user_id)
         svc = runtime.get_session_service()
         session = await svc.create_session(app_name=runtime.get_app_name(), user_id=user_id)
         return {
@@ -614,9 +703,10 @@ def create_app(
     @api.get("/api/sessions/{session_id}")
     async def get_session(
         session_id: str,
+        request: Request,
         x_user_id: str | None = Header(default=None),
     ) -> dict[str, Any]:
-        user_id = _resolve_user_id(x_user_id)
+        user_id = _resolve_user_id(request, x_user_id)
         svc = runtime.get_session_service()
         session = await svc.get_session(
             app_name=runtime.get_app_name(), user_id=user_id, session_id=session_id
@@ -635,9 +725,10 @@ def create_app(
     @api.delete("/api/sessions/{session_id}")
     async def delete_session(
         session_id: str,
+        request: Request,
         x_user_id: str | None = Header(default=None),
     ) -> dict[str, str]:
-        user_id = _resolve_user_id(x_user_id)
+        user_id = _resolve_user_id(request, x_user_id)
         svc = runtime.get_session_service()
         await svc.delete_session(
             app_name=runtime.get_app_name(), user_id=user_id, session_id=session_id
@@ -647,9 +738,10 @@ def create_app(
     @api.post("/api/chat/stream")
     async def chat_stream(
         req: ChatStreamRequest,
+        request: Request,
         x_user_id: str | None = Header(default=None),
     ) -> StreamingResponse:
-        user_id = _resolve_user_id(x_user_id)
+        user_id = _resolve_user_id(request, x_user_id)
         if not req.confirmation and not (req.message and req.message.strip()):
             raise HTTPException(status_code=422, detail="Envie uma mensagem ou confirmação HITL.")
 
