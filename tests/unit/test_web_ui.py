@@ -113,6 +113,11 @@ def test_web_ui_routes_health_sessions_and_pdf_export():
     assert "Bacen Fintech Advisor" in idx.text
     assert "Exportar PDF" in idx.text or "/static/app.js" in idx.text
 
+    # Liveness probe for Cloud Run.
+    live = client.get("/healthz")
+    assert live.status_code == 200
+    assert live.json()["status"] == "ok"
+
     # Health endpoint returns active routing configuration.
     health = client.get("/api/health")
     assert health.status_code == 200

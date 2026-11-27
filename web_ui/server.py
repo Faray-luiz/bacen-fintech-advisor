@@ -382,11 +382,16 @@ class _AgentRuntime:
         if self._session_service is None:
             from google.adk.sessions import DatabaseSessionService
 
+            from bacen_advisor.config import is_managed_runtime
+
             db_url = os.getenv("WEB_UI_SESSION_DB_URL")
             if not db_url:
-                adk_dir = REPO_ROOT / ".adk"
-                adk_dir.mkdir(parents=True, exist_ok=True)
-                db_url = f"sqlite+aiosqlite:///{adk_dir / 'web_ui_sessions.db'}"
+                if is_managed_runtime():
+                    db_url = "sqlite+aiosqlite:////tmp/web_ui_sessions.db"
+                else:
+                    adk_dir = REPO_ROOT / ".adk"
+                    adk_dir.mkdir(parents=True, exist_ok=True)
+                    db_url = f"sqlite+aiosqlite:///{adk_dir / 'web_ui_sessions.db'}"
             self._session_service = DatabaseSessionService(db_url=db_url)
         return self._session_service
 
@@ -455,18 +460,44 @@ def create_app(
             raise HTTPException(status_code=404, detail="Frontend assets not found.")
         return FileResponse(index_file, media_type="text/html; charset=utf-8")
 
+    @api.get("/healthz", include_in_schema=False)
+    async def liveness() -> dict[str, str]:
+        return {"status": "ok"}
+
     @api.get("/api/health")
     async def health() -> dict[str, Any]:
-        from bacen_advisor.config import get_settings
+        from urllib.parse import urlparse
+
+        from bacen_advisor.config import get_settings, is_managed_runtime
+        from bacen_advisor.tools.mcp_bacen import (
+            _OFFLINE_PLACEHOLDER_URL,
+            _IdTokenProvider,
+            _resolve_mcp_url,
+        )
 
         settings = get_settings()
-        mcp_url = os.getenv("BACEN_MCP_URL", "")
+        try:
+            mcp_url = _resolve_mcp_url()
+        except Exception:  # noqa: BLE001
+            mcp_url = os.getenv("BACEN_MCP_URL", "")
+        if mcp_url == _OFFLINE_PLACEHOLDER_URL:
+            mcp_url = ""
+
         mcp_healthy: bool | None = None
         if mcp_url:
             health_url = re.sub(r"/mcp/?$", "/healthz", mcp_url)
+            headers: dict[str, str] = {}
+            if is_managed_runtime() or health_url.startswith("https://"):
+                try:
+                    parsed = urlparse(mcp_url)
+                    audience = f"{parsed.scheme}://{parsed.netloc}"
+                    token = await asyncio.to_thread(_IdTokenProvider(audience).get)
+                    headers["Authorization"] = f"Bearer {token}"
+                except Exception:  # noqa: BLE001
+                    pass
             try:
-                async with httpx.AsyncClient(timeout=1.5) as client:
-                    resp = await client.get(health_url)
+                async with httpx.AsyncClient(timeout=2.5) as client:
+                    resp = await client.get(health_url, headers=headers)
                     mcp_healthy = resp.status_code == 200
             except Exception:  # noqa: BLE001
                 mcp_healthy = False
@@ -480,6 +511,7 @@ def create_app(
             "mcp_url": mcp_url,
             "mcp_healthy": mcp_healthy,
             "reports_bucket_configured": bool(settings.reports_bucket),
+            "managed_runtime": is_managed_runtime(),
         }
 
     @api.get("/api/sessions")

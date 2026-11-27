@@ -71,13 +71,13 @@ ${GCLOUD} run deploy "${SERVICE_NAME}" \
 
 SERVICE_URL="$(${GCLOUD} run services describe "${SERVICE_NAME}" --project "${PROJECT_ID}" --region "${REGION}" --format="value(status.url)")"
 
-echo "==> 4. Granting roles/run.invoker to the Gemini Enterprise service agent..."
+echo "==> 4. Granting roles/run.invoker to the Gemini Enterprise service agent (if provisioned)..."
 DISCOVERY_SA="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-discoveryengine.iam.gserviceaccount.com"
 ${GCLOUD} projects add-iam-policy-binding "${PROJECT_ID}" \
   --member="${DISCOVERY_SA}" \
   --role="roles/run.invoker" \
   --condition=None \
-  --quiet >/dev/null
+  --quiet >/dev/null 2>&1 || echo "    (Skipped: Discovery Engine service agent not enabled in ${PROJECT_ID}; Cloud Run UI SA is granted separately.)"
 
 echo ""
 echo "DEPLOY COMPLETE: ${SERVICE_URL}/mcp (SA: ${RUNTIME_SA})"

@@ -3,7 +3,7 @@ REGION     ?= us-central1
 PY         ?= .venv/bin/python
 GCLOUD     ?= gcloud
 
-.PHONY: install lint test mcp-test mcp-run mcp-deploy ui eval adk-eval e2e playground playground-otel run tf-bootstrap tf-init infra-plan infra verify-infra infra-destroy deploy adk-deploy deploy-test destroy
+.PHONY: install lint test mcp-test mcp-run mcp-deploy ui ui-deploy eval adk-eval e2e playground playground-otel run tf-bootstrap tf-init infra-plan infra verify-infra infra-destroy deploy adk-deploy deploy-test destroy
 
 install:            ## Create venv and install deps (uses uv if available, else python3 -m venv)
 	@if command -v uv >/dev/null 2>&1; then \
@@ -39,6 +39,9 @@ e2e:                ## Run all user stories against deployed Agent Runtime
 
 ui:                 ## Start Google Material Design 3 Web UI with per-output PDF export on http://localhost:8500
 	$(PY) -m uvicorn web_ui.server:app --host 0.0.0.0 --port 8500
+
+ui-deploy:          ## Deploy private MCP server + authenticated Google M3 Web UI to Cloud Run
+	PROJECT_ID=$(PROJECT_ID) REGION=$(REGION) GCLOUD=$(GCLOUD) bash deployment/deploy_cloud_run_ui.sh
 
 playground:         ## ADK dev UI with persistent local SQLite sessions
 	.venv/bin/adk web --session_service_uri sqlite:///.adk/sessions.db .

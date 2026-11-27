@@ -216,8 +216,12 @@ BACEN_MCP_URL=http://localhost:8080/mcp make run
 # .venv/bin/adk run bacen_advisor
 ```
 
-### Deploy to Google Cloud (Cloud Run + Terraform + Agent Engine)
+### Deploy to Google Cloud (Cloud Run Web UI + Private MCP, or Full Agent Engine + Terraform)
 ```bash
+# Quick production deploy (Private Bacen MCP + Secret Manager + Authenticated Google M3 Web UI on Cloud Run):
+make ui-deploy PROJECT_ID=<your-project> REGION=us-central1
+
+# Or full enterprise deployment (Cloud Run MCP + Terraform IaC + Vertex AI Agent Engine):
 # 1. Deploy private Bacen MCP server on Cloud Run
 make mcp-deploy PROJECT_ID=<your-project>
 

@@ -79,6 +79,13 @@ _FONT_CANDIDATES: list[dict[str, Any]] = [
         "bold_italic": "/usr/share/fonts/truetype/roboto/unhinted/RobotoTTF/Roboto-BoldItalic.ttf",
     },
     {
+        "family": "GoogleRobotoAlt",
+        "regular": "/usr/share/fonts/truetype/roboto/Roboto-Regular.ttf",
+        "bold": "/usr/share/fonts/truetype/roboto/Roboto-Bold.ttf",
+        "italic": "/usr/share/fonts/truetype/roboto/Roboto-Italic.ttf",
+        "bold_italic": "/usr/share/fonts/truetype/roboto/Roboto-BoldItalic.ttf",
+    },
+    {
         "family": "DejaVuSansCustom",
         "regular": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "bold": "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
