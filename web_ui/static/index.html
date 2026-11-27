@@ -78,8 +78,8 @@
     <!-- Mobile backdrop -->
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
-    <!-- Left Navigation Rail (Google M3 Navigation Drawer) -->
-    <aside class="sidebar" id="sidebar" aria-label="Navegação de sessões">
+    <!-- Left Navigation Rail (Calm Google M3 Drawer) -->
+    <aside class="sidebar" id="sidebar" aria-label="Navegação principal">
       <div class="sidebar-header">
         <div class="brand-lockup">
           <div class="brand-emblem" aria-hidden="true">
@@ -90,7 +90,7 @@
           </div>
           <div class="brand-text">
             <span class="brand-name">Bacen Advisor</span>
-            <span class="brand-sub">BCB · Open Finance</span>
+            <span class="brand-sub">Dados Oficiais BCB</span>
           </div>
         </div>
         <button class="icon-btn mobile-only" id="closeSidebarBtn" title="Fechar menu" aria-label="Fechar menu">
@@ -105,144 +105,180 @@
         </button>
       </div>
 
+      <!-- Dedicated Tools Navigation (moved out of overcrowded topbar) -->
+      <div class="sidebar-section-label">Ferramentas</div>
+      <div class="sidebar-tools-nav" role="navigation" aria-label="Ferramentas interativas">
+        <button class="sidebar-tool-btn" id="openWhatIfBtn" type="button">
+          <span class="material-symbols-outlined tool-ico-blue">tune</span>
+          <div class="sidebar-tool-text">
+            <span>Simulador What-If</span>
+            <small>Ranking BCB &amp; Business Case</small>
+          </div>
+        </button>
+        <button class="sidebar-tool-btn" id="openWarRoomBtn" type="button">
+          <span class="material-symbols-outlined tool-ico-red">groups</span>
+          <div class="sidebar-tool-text">
+            <span>War Room C-Level</span>
+            <small>CTO · CRO · CFO &amp; Roleplay</small>
+          </div>
+        </button>
+      </div>
+
       <div class="sidebar-section-label">Análises recentes</div>
+      <div class="session-search-wrap hidden" id="sessionSearchWrap">
+        <span class="material-symbols-outlined">search</span>
+        <input
+          type="search"
+          id="sessionSearchInput"
+          class="session-search-input"
+          placeholder="Filtrar análises..."
+          aria-label="Filtrar análises recentes"
+        />
+      </div>
       <nav class="session-list" id="sessionList" aria-label="Histórico de análises">
         <!-- Populated dynamically -->
       </nav>
 
+      <!-- Minimalist BCB Status & Sources Footer (replaces bulky 4-pillar box) -->
       <div class="sidebar-footer">
-        <div class="pillars-card">
-          <div class="pillars-title">
-            <span class="material-symbols-outlined">account_balance</span>
-            <span>4 Pilares Oficiais BCB</span>
+        <div class="sources-popover hidden" id="sourcesPopover" role="dialog" aria-label="Fontes oficiais e modelos">
+          <div class="sources-popover-head">
+            <strong>4 Pilares Oficiais BCB</strong>
+            <span class="popover-model-tag" id="sidebarModelsText">Gemini Flash · Pro</span>
           </div>
-          <ul class="pillars-list">
-            <li><span>Deati</span><small>Reclamações</small></li>
-            <li><span>Olinda</span><small>Taxas de Crédito</small></li>
-            <li><span>SPI / MED</span><small>Pix &amp; Fraude</small></li>
-            <li><span>IF.data</span><small>Basileia &amp; ROE</small></li>
+          <ul class="sources-popover-list">
+            <li><strong>Deati</strong> · Reclamações procedentes / 1M clientes</li>
+            <li><strong>Olinda v2</strong> · Taxas mensais de juros de crédito</li>
+            <li><strong>SPI / MED</strong> · Pix, disponibilidade e fraudes</li>
+            <li><strong>IF.data</strong> · Basileia III, ROE e Open Finance</li>
           </ul>
-          <div class="runtime-meta" id="sidebarRuntimeMeta">
-            <span class="material-symbols-outlined">memory</span>
-            <span id="sidebarModelsText">Gemini Flash · Pro</span>
-          </div>
         </div>
+        <button class="sidebar-status-btn" id="sidebarStatusBtn" type="button" title="Ver fontes oficiais do Banco Central e status do sistema">
+          <span class="status-dot" id="mcpStatusDot"></span>
+          <span id="mcpStatusText">Verificando BCB...</span>
+          <span class="material-symbols-outlined sidebar-status-chevron">info</span>
+        </button>
       </div>
     </aside>
 
     <!-- Main Center Workspace -->
     <div class="workspace">
+      <!-- Ultra-Clean 3-Zone Topbar (never crowds at 1360px, 1100px, or 390px) -->
       <header class="topbar">
         <div class="topbar-left">
-          <button class="icon-btn" id="toggleSidebarBtn" title="Alternar barra lateral" aria-label="Alternar barra lateral">
+          <button class="icon-btn" id="toggleSidebarBtn" title="Alternar menu lateral" aria-label="Alternar menu lateral">
             <span class="material-symbols-outlined">menu</span>
           </button>
           <div class="session-heading">
-            <h1 class="session-title" id="activeSessionTitle">Nova análise BCB</h1>
+            <h1 class="session-title" id="activeSessionTitle">Nova análise</h1>
           </div>
         </div>
 
         <div class="topbar-right">
-          <div class="status-chip" id="mcpStatusChip" title="Status do servidor MCP de dados públicos do Banco Central">
-            <span class="status-dot" id="mcpStatusDot"></span>
-            <span id="mcpStatusText">Verificando MCP...</span>
-          </div>
-          <div class="model-chip" id="modelRoutingChip" title="Roteamento estratégico de modelos Gemini">
-            <span class="material-symbols-outlined">auto_awesome</span>
-            <span id="modelRoutingText">Flash · Pro</span>
-          </div>
-          <button class="tonal-btn" id="openWhatIfBtn" type="button" title="Simulador interativo What-If de ranking BCB e Business Case Google Cloud">
-            <span class="material-symbols-outlined">tune</span>
-            <span class="hide-sm">What-If</span>
-          </button>
-          <button class="tonal-btn" id="openWarRoomBtn" type="button" title="Boardroom War Room C-Level (CTO · CRO · CFO) e Roleplay de pitch">
-            <span class="material-symbols-outlined">groups</span>
-            <span class="hide-sm">War Room</span>
-          </button>
-          <button class="tonal-btn" id="toggleInspectorBtn" type="button" title="Abrir inspetor de agentes e auditoria">
+          <button class="icon-pill-btn" id="toggleInspectorBtn" type="button" title="Abrir auditoria e rastreamento de fontes" aria-label="Abrir auditoria">
             <span class="material-symbols-outlined">account_tree</span>
-            <span class="hide-sm">Rastreamento</span>
+            <span class="hide-sm">Auditoria</span>
           </button>
-          <button class="tonal-btn hidden" id="openAdminBtn" type="button" title="Gerenciar contas e domínios autorizados">
-            <span class="material-symbols-outlined">admin_panel_settings</span>
-            <span class="hide-sm">Admin</span>
-          </button>
-          <div class="user-pill hidden" id="userPill" title="">
-            <img class="user-avatar hidden" id="userAvatarImg" alt="" referrerpolicy="no-referrer" />
-            <span class="user-avatar-fallback" id="userAvatarFallback">U</span>
-            <span class="user-pill-name hide-sm" id="userPillName"></span>
+
+          <!-- Unified Account Avatar & Popover Menu (Admin, System Status, Logout) -->
+          <div class="account-menu-wrap" id="accountMenuWrap">
+            <button class="account-trigger hidden" id="userPill" type="button" aria-haspopup="true" aria-expanded="false" title="Menu da conta">
+              <img class="user-avatar hidden" id="userAvatarImg" alt="" referrerpolicy="no-referrer" />
+              <span class="user-avatar-fallback" id="userAvatarFallback">U</span>
+              <span class="user-pill-name hide-md" id="userPillName"></span>
+              <span class="material-symbols-outlined account-caret hide-sm">expand_more</span>
+            </button>
+
+            <div class="account-popover hidden" id="accountPopover" role="menu">
+              <div class="account-popover-header">
+                <div class="account-popover-name" id="accountPopoverName">Usuário</div>
+                <div class="account-popover-email" id="accountPopoverEmail"></div>
+              </div>
+
+              <div class="account-popover-status">
+                <span class="status-dot" id="popoverStatusDot"></span>
+                <span id="popoverStatusText">Dados BCB Online</span>
+                <span class="popover-sep">·</span>
+                <span id="modelRoutingText">Flash · Pro</span>
+              </div>
+
+              <div class="account-popover-divider"></div>
+
+              <button class="account-menu-item hidden" id="openAdminBtn" type="button" role="menuitem">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                <span>Gerenciar Acessos (Admin)</span>
+              </button>
+
+              <button class="account-menu-item danger hidden" id="logoutBtn" type="button" role="menuitem">
+                <span class="material-symbols-outlined">logout</span>
+                <span>Sair da conta</span>
+              </button>
+            </div>
           </div>
-          <button class="icon-btn hidden" id="logoutBtn" type="button" title="Sair da sessão" aria-label="Sair da sessão">
-            <span class="material-symbols-outlined">logout</span>
-          </button>
         </div>
       </header>
 
       <main class="chat-scroll" id="chatScroll" tabindex="0">
         <div class="chat-container" id="chatContainer">
-          <!-- Welcome Empty State -->
+          <!-- Guided, Calm Welcome Home State -->
           <section class="welcome-state" id="welcomeState">
-            <div class="welcome-badge">
-              <span class="dot dot-blue"></span>
-              <span class="dot dot-red"></span>
-              <span class="dot dot-yellow"></span>
-              <span class="dot dot-green"></span>
-              <span>Google ADK Multi-Agent · Dados Públicos BCB</span>
-            </div>
-            <h2 class="welcome-title">Como posso analisar o mercado financeiro hoje?</h2>
+            <h2 class="welcome-title">O que vamos analisar hoje?</h2>
             <p class="welcome-subtitle">
-              Compare bancos digitais e grandes bancos nos 4 pilares do Banco Central do Brasil,
-              gere planos de oportunidades &amp; arquiteturas Google Cloud sob medida para qualquer
-              banco e exporte qualquer análise em PDF executivo.
+              Compare bancos com dados oficiais do Banco Central, simule cenários de ranking e prepare reuniões executivas Google Cloud em segundos.
             </p>
 
-            <div class="starter-grid" id="starterGrid">
-              <button class="starter-card" type="button" data-prompt="Compare o Nubank com Itaú, Bradesco e Inter nos 4 pilares do Banco Central">
-                <span class="starter-icon material-symbols-outlined">leaderboard</span>
-                <div class="starter-body">
-                  <div class="starter-title">Benchmark 4 Pilares</div>
-                  <div class="starter-desc">Nubank vs. Itaú, Bradesco e Inter em reclamações, crédito, Pix/MED e IF.data.</div>
+            <!-- Quick Bank Focus Strip (adapts the 3 journey cards in 1 click) -->
+            <div class="home-bank-strip" id="homeBankStrip" role="group" aria-label="Filtrar foco por banco">
+              <button class="home-bank-chip active" type="button" data-home-bank="">Mercado Geral</button>
+              <button class="home-bank-chip" type="button" data-home-bank="NUBANK">Nubank</button>
+              <button class="home-bank-chip" type="button" data-home-bank="ITAU">Itaú</button>
+              <button class="home-bank-chip" type="button" data-home-bank="BRADESCO">Bradesco</button>
+              <button class="home-bank-chip" type="button" data-home-bank="INTER">Inter</button>
+              <button class="home-bank-chip" type="button" data-home-bank="C6_BANK">C6 Bank</button>
+              <button class="home-bank-chip" type="button" data-home-bank="BTG_PACTUAL">BTG Pactual</button>
+              <button class="home-bank-chip" type="button" data-home-bank="MERCADO_PAGO">Mercado Pago</button>
+            </div>
+
+            <!-- 3 Clear Goal-Oriented Journeys (Hick's Law) -->
+            <div class="starter-grid-3" id="starterGrid">
+              <button class="journey-card" type="button" data-journey="benchmark">
+                <div class="journey-icon ico-blue">
+                  <span class="material-symbols-outlined">leaderboard</span>
                 </div>
+                <div class="journey-title" id="journeyBenchmarkTitle">Comparar Bancos (BCB)</div>
+                <div class="journey-desc" id="journeyBenchmarkDesc">Benchmark completo em reclamações, taxas de crédito, Pix/MED e saúde financeira.</div>
               </button>
 
-              <button class="starter-card starter-card-highlight" type="button" data-prompt="Atue como consultor sênior de Google Cloud e gere iniciativas, arquiteturas de referência e casos de uso para o Bradesco com base nos 4 pilares do Banco Central">
-                <span class="starter-icon material-symbols-outlined">cloud_done</span>
-                <div class="starter-body">
-                  <div class="starter-title">Consultor Sênior Google Cloud</div>
-                  <div class="starter-desc">Diagnóstico BCB → oportunidades, diferenciais Google Cloud e discovery para um banco.</div>
+              <button class="journey-card" type="button" data-journey="whatif">
+                <div class="journey-icon ico-green">
+                  <span class="material-symbols-outlined">tune</span>
                 </div>
+                <div class="journey-title" id="journeyWhatIfTitle">Simular Metas (What-If)</div>
+                <div class="journey-desc" id="journeyWhatIfDesc">Ajuste indicadores ao vivo para projetar ganho no ranking e gerar Business Case.</div>
               </button>
 
-              <button class="starter-card starter-card-whatif" type="button" data-open-modal="whatif">
-                <span class="starter-icon material-symbols-outlined">tune</span>
-                <div class="starter-body">
-                  <div class="starter-title">Simulador What-If &amp; Business Case</div>
-                  <div class="starter-desc">Ajuste metas de Reclamações, Pix/MED e Juros ao vivo para simular ganho no ranking BCB e plano GCP.</div>
+              <button class="journey-card" type="button" data-journey="warroom">
+                <div class="journey-icon ico-red">
+                  <span class="material-symbols-outlined">groups</span>
                 </div>
+                <div class="journey-title" id="journeyWarRoomTitle">Preparar Reunião C-Level</div>
+                <div class="journey-desc" id="journeyWarRoomDesc">Simule objeções reais de CTO, CRO e CFO ou treine seu pitch em roleplay 1:1.</div>
               </button>
+            </div>
 
-              <button class="starter-card starter-card-warroom" type="button" data-open-modal="warroom">
-                <span class="starter-icon material-symbols-outlined">groups</span>
-                <div class="starter-body">
-                  <div class="starter-title">Boardroom War Room (CTO · CRO · CFO)</div>
-                  <div class="starter-desc">Debate multi-persona em paralelo com objeções C-Level reais ou roleplay 1:1 para treinar seu pitch.</div>
-                </div>
+            <!-- Whisper-Quiet Secondary Shortcuts -->
+            <div class="quick-prompts-row" id="quickPromptsRow">
+              <button class="quick-prompt-chip" type="button" data-quick-action="gcp-plan">
+                <span class="material-symbols-outlined">cloud_done</span>
+                <span id="quickGcpLabel">Plano Google Cloud para o Bradesco</span>
               </button>
-
-              <button class="starter-card" type="button" data-prompt="Qual a menor taxa do cartão rotativo entre Nubank, Itaú, Bradesco e Banco do Brasil?">
-                <span class="starter-icon material-symbols-outlined">percent</span>
-                <div class="starter-body">
-                  <div class="starter-title">Taxas de Crédito (Olinda)</div>
-                  <div class="starter-desc">Consulte juros mensais e anuais do rotativo nas séries oficiais do BCB.</div>
-                </div>
+              <button class="quick-prompt-chip" type="button" data-prompt="Qual a menor taxa do cartão rotativo entre Nubank, Itaú, Bradesco e Banco do Brasil?">
+                <span class="material-symbols-outlined">percent</span>
+                <span>Menor taxa do rotativo</span>
               </button>
-
-              <button class="starter-card" type="button" data-prompt="Quais os principais motivos de reclamação nos bancos digitais no BCB?">
-                <span class="starter-icon material-symbols-outlined">support_agent</span>
-                <div class="starter-body">
-                  <div class="starter-title">Diagnóstico de Reclamações</div>
-                  <div class="starter-desc">Principais ofensores dos neobanks no ranking trimestral Deati/BCB.</div>
-                </div>
+              <button class="quick-prompt-chip" type="button" data-prompt="Quais os principais motivos de reclamação nos bancos digitais no BCB?">
+                <span class="material-symbols-outlined">support_agent</span>
+                <span>Motivos de reclamação (Neobanks)</span>
               </button>
             </div>
           </section>
@@ -252,6 +288,20 @@
         </div>
       </main>
 
+      <!-- Active Roleplay Context Banner (shown only during 1:1 Roleplay sessions) -->
+      <div class="roleplay-banner hidden" id="roleplayBanner">
+        <div class="roleplay-banner-inner">
+          <div class="roleplay-banner-info">
+            <span class="material-symbols-outlined">record_voice_over</span>
+            <span id="roleplayBannerText">Modo Roleplay 1:1 ativo · Responda à objeção do executivo abaixo</span>
+          </div>
+          <button class="roleplay-end-btn" id="endRoleplayBtn" type="button">
+            <span class="material-symbols-outlined">fact_check</span>
+            <span>Encerrar e ver Relatório Final</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Bottom Floating M3 Composer -->
       <div class="composer-region">
         <form class="composer-box" id="composerForm">
@@ -259,7 +309,7 @@
             id="promptInput"
             class="composer-input"
             rows="1"
-            placeholder="Pergunte sobre bancos digitais, taxas de juros, Pix/MED, reclamações ou IF.data..."
+            placeholder="Pergunte sobre bancos, taxas ou Pix..."
             aria-label="Digite sua consulta sobre o Banco Central"
           ></textarea>
           <button class="send-btn" id="sendBtn" type="submit" title="Enviar consulta" aria-label="Enviar consulta" disabled>
@@ -267,29 +317,29 @@
           </button>
         </form>
         <p class="composer-disclaimer">
-          Dados públicos do Banco Central do Brasil (Olinda / Deati / IF.data) &amp; Open Finance Brasil · PII redigido automaticamente antes de logs, memória e PDF.
+          100% dados públicos do Banco Central do Brasil &amp; Open Finance · Proteção automática de PII.
         </p>
       </div>
     </div>
 
     <!-- Right-Side AgentOps Inspector Drawer -->
-    <aside class="inspector" id="inspectorDrawer" aria-label="Inspetor de execução multi-agente">
+    <aside class="inspector" id="inspectorDrawer" aria-label="Auditoria e rastreamento">
       <div class="inspector-header">
         <div class="inspector-title-group">
           <span class="material-symbols-outlined">account_tree</span>
           <div>
-            <h2>Rastreamento &amp; Auditoria</h2>
+            <h2>Auditoria &amp; Fontes</h2>
             <p id="inspectorSubtitle">Selecione uma resposta para inspecionar</p>
           </div>
         </div>
-        <button class="icon-btn" id="closeInspectorBtn" title="Fechar inspetor" aria-label="Fechar inspetor">
+        <button class="icon-btn" id="closeInspectorBtn" title="Fechar auditoria" aria-label="Fechar auditoria">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
       <div class="inspector-body" id="inspectorBody">
         <div class="inspector-empty">
           <span class="material-symbols-outlined">analytics</span>
-          <p>Clique em <strong>Rastreamento</strong> em qualquer resposta para visualizar o grafo de agentes, chamadas MCP BCB e o veredito do Quality Critic.</p>
+          <p>Clique em <strong>Auditoria</strong> em qualquer resposta para visualizar os agentes executados, chamadas ao Banco Central e a validação de qualidade.</p>
         </div>
       </div>
     </aside>
@@ -336,7 +386,7 @@
     </div>
   </div>
 
-  <!-- Interactive What-If BCB Ranking Simulator & Business Case Modal -->
+  <!-- Interactive What-If BCB Ranking Simulator & Business Case Modal (Progressive Disclosure) -->
   <div class="modal-backdrop hidden" id="whatIfModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="whatIfModalTitle">
     <div class="whatif-modal">
       <div class="auth-accent-bar" aria-hidden="true">
@@ -346,8 +396,8 @@
         <div class="modal-title-group">
           <span class="material-symbols-outlined modal-icon-blue">tune</span>
           <div>
-            <h2 id="whatIfModalTitle">Simulador What-If de Ranking BCB &amp; Business Case</h2>
-            <p id="whatIfBaselineMeta">Carregando baseline oficial dos 4 pilares do Banco Central...</p>
+            <h2 id="whatIfModalTitle">Simulador What-If de Ranking BCB</h2>
+            <p id="whatIfBaselineMeta">Carregando baseline oficial do Banco Central...</p>
           </div>
         </div>
         <button class="icon-btn" id="closeWhatIfModalBtn" type="button" title="Fechar simulador" aria-label="Fechar simulador">
@@ -381,8 +431,13 @@
       </div>
 
       <div class="whatif-body">
-        <div class="whatif-sliders-col" id="whatIfSlidersHost">
-          <!-- Populated dynamically with 4-pillar sliders -->
+        <div class="whatif-sliders-col">
+          <div id="whatIfSlidersHost" class="whatif-sliders-stack"></div>
+          <button class="whatif-more-toggle" id="whatIfMoreToggle" type="button" aria-expanded="false">
+            <span class="material-symbols-outlined" id="whatIfMoreIcon">expand_more</span>
+            <span id="whatIfMoreLabel">Mostrar mais 4 indicadores (SPI, Devolução MED, Inadimplência, Open Finance)</span>
+          </button>
+          <div id="whatIfExtraSlidersHost" class="whatif-sliders-stack hidden"></div>
         </div>
 
         <div class="whatif-results-col">
@@ -395,7 +450,7 @@
               </div>
             </div>
             <div class="whatif-kpi-tile">
-              <span class="kpi-label">Score Consolidado (0–10)</span>
+              <span class="kpi-label">Score Consolidado</span>
               <div class="kpi-value-row">
                 <span class="kpi-big" id="whatIfScoreDisplay">—</span>
                 <span class="kpi-delta-pill neutral" id="whatIfScoreDelta">0.00</span>
@@ -407,26 +462,26 @@
           <div class="whatif-alerts hidden" id="whatIfAlertsBox"></div>
 
           <div class="whatif-panel-card">
-            <h3>Ranking Competitivo em Tempo Real (10 Instituições)</h3>
+            <h3>Ranking Competitivo ao Vivo</h3>
             <div class="whatif-leaderboard" id="whatIfLeaderboard"></div>
           </div>
 
           <div class="whatif-panel-card">
-            <h3>Blueprints Google Cloud FSI Habilitadores</h3>
+            <h3>Soluções Google Cloud Habilitadoras</h3>
             <div class="whatif-blueprints" id="whatIfBlueprints">
-              <p class="whatif-empty-hint">Mova qualquer slider à esquerda para mapear automaticamente os blueprints Google Cloud habilitadores.</p>
+              <p class="whatif-empty-hint">Mova qualquer indicador à esquerda para mapear as soluções Google Cloud recomendadas.</p>
             </div>
           </div>
         </div>
       </div>
 
       <div class="modal-footer">
-        <span class="modal-footer-note">Cálculo 100% determinístico idêntico ao MCP BCB · Business Case auditado pelo Quality Critic</span>
+        <span class="modal-footer-note">Cálculo determinístico sobre dados oficiais BCB</span>
         <div class="modal-footer-actions">
           <button class="btn-secondary" id="cancelWhatIfBtn" type="button">Fechar</button>
           <button class="btn-pdf-export" id="launchWhatIfBusinessCaseBtn" type="button">
             <span class="material-symbols-outlined">auto_awesome</span>
-            <span>Gerar Business Case Completo com IA</span>
+            <span>Gerar Business Case com IA</span>
           </button>
         </div>
       </div>
@@ -443,8 +498,8 @@
         <div class="modal-title-group">
           <span class="material-symbols-outlined modal-icon-red">groups</span>
           <div>
-            <h2 id="warRoomModalTitle">Boardroom War Room · Simulador C-Level</h2>
-            <p>Prepare objeções reais de diretoria ou treine seu pitch ao vivo com dados oficiais do BCB</p>
+            <h2 id="warRoomModalTitle">War Room C-Level</h2>
+            <p>Antecipe objeções reais da diretoria ou treine seu pitch em roleplay 1:1</p>
           </div>
         </div>
         <button class="icon-btn" id="closeWarRoomModalBtn" type="button" title="Fechar War Room" aria-label="Fechar War Room">
@@ -459,9 +514,9 @@
             <select id="warRoomBankSelect" class="m3-select"></select>
           </div>
           <div class="warroom-field">
-            <label for="warRoomTopicSelect">Foco da reunião</label>
+            <label for="warRoomTopicSelect">Tema da reunião</label>
             <select id="warRoomTopicSelect" class="m3-select">
-              <option value="estratégia geral nos 4 pilares do Banco Central">Geral (4 Pilares BCB)</option>
+              <option value="estratégia geral nos 4 pilares do Banco Central">Visão Geral (4 Pilares BCB)</option>
               <option value="antifraude Pix, disponibilidade SPI e recuperação MED">Antifraude Pix / SPI / MED</option>
               <option value="modernização progressiva de core bancário e legado com AlloyDB e GKE">Modernização de Core &amp; Legado</option>
               <option value="redução de reclamações Deati e Ouvidoria com GenAI auditável">Ouvidoria &amp; CX (Deati IA)</option>
@@ -470,29 +525,29 @@
           </div>
         </div>
 
-        <div class="warroom-section-label">Escolha o modo de execução</div>
+        <div class="warroom-section-label">Modo de preparação</div>
         <div class="warroom-mode-grid" id="warRoomModeGrid">
           <button type="button" class="warroom-mode-card selected" data-mode="panel">
             <div class="mode-card-top">
               <span class="material-symbols-outlined">hub</span>
-              <span class="mode-pill">ParallelAgent · 3 Personas</span>
+              <span class="mode-pill">3 Personas em Paralelo</span>
             </div>
-            <h3>Dossiê Comitê Completo (CTO · CRO · CFO)</h3>
-            <p>Executa CTO, CRO/Compliance e CFO em paralelo sobre os dados BCB do banco e gera matriz de 6 objeções, falas prontas e battlecard Google Cloud.</p>
+            <h3>Dossiê Completo (CTO · CRO · CFO)</h3>
+            <p>Receba a matriz com as 6 objeções mais duras da diretoria, falas prontas e diferenciais Google Cloud.</p>
           </button>
 
           <button type="button" class="warroom-mode-card" data-mode="roleplay">
             <div class="mode-card-top">
               <span class="material-symbols-outlined">record_voice_over</span>
-              <span class="mode-pill green">Interativo 1:1 · Scorecard</span>
+              <span class="mode-pill green">Treino Interativo 1:1</span>
             </div>
-            <h3>Treinar Pitch ao Vivo (Roleplay 1:1)</h3>
-            <p>Enfrente um executivo específico em conversa direta: ele dispara objeções duras baseadas no BCB e avalia suas respostas com nota de 1 a 5.</p>
+            <h3>Roleplay ao Vivo com Scorecard</h3>
+            <p>Converse direto com um executivo simulado, defenda sua proposta e receba nota de 1 a 5 a cada turno.</p>
           </button>
         </div>
 
         <div class="warroom-persona-box hidden" id="warRoomPersonaBox">
-          <div class="warroom-section-label">Qual executivo você quer enfrentar no Roleplay?</div>
+          <div class="warroom-section-label">Com qual executivo você quer treinar?</div>
           <div class="persona-chips" id="warRoomPersonaChips">
             <button type="button" class="persona-chip selected" data-persona="CTO (Chief Technology Officer)">
               <span class="material-symbols-outlined">developer_board</span>
@@ -511,12 +566,12 @@
       </div>
 
       <div class="modal-footer">
-        <span class="modal-footer-note">Ancorado 100% em dados públicos BCB e blueprints oficiais Google Cloud FSI</span>
+        <span class="modal-footer-note">Ancorado 100% em dados públicos BCB</span>
         <div class="modal-footer-actions">
           <button class="btn-secondary" id="cancelWarRoomBtn" type="button">Cancelar</button>
           <button class="btn-pdf-export" id="launchWarRoomBtn" type="button">
             <span class="material-symbols-outlined">play_arrow</span>
-            <span id="launchWarRoomBtnLabel">Gerar Dossiê War Room (CTO · CRO · CFO)</span>
+            <span id="launchWarRoomBtnLabel">Gerar Dossiê War Room</span>
           </button>
         </div>
       </div>

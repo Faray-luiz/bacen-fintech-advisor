@@ -11,6 +11,8 @@
   const state = {
     activeSessionId: null,
     sessions: [],
+    sessionFilter: "",
+    homeBank: "",
     turns: [],
     isStreaming: false,
     selectedTraceId: null,
@@ -48,6 +50,11 @@
     userAvatarImg: document.getElementById("userAvatarImg"),
     userAvatarFallback: document.getElementById("userAvatarFallback"),
     userPillName: document.getElementById("userPillName"),
+    accountPopover: document.getElementById("accountPopover"),
+    accountPopoverName: document.getElementById("accountPopoverName"),
+    accountPopoverEmail: document.getElementById("accountPopoverEmail"),
+    popoverStatusDot: document.getElementById("popoverStatusDot"),
+    popoverStatusText: document.getElementById("popoverStatusText"),
     logoutBtn: document.getElementById("logoutBtn"),
     appShell: document.getElementById("appShell"),
     sidebar: document.getElementById("sidebar"),
@@ -55,9 +62,13 @@
     toggleSidebarBtn: document.getElementById("toggleSidebarBtn"),
     closeSidebarBtn: document.getElementById("closeSidebarBtn"),
     newSessionBtn: document.getElementById("newSessionBtn"),
+    sessionSearchWrap: document.getElementById("sessionSearchWrap"),
+    sessionSearchInput: document.getElementById("sessionSearchInput"),
     sessionList: document.getElementById("sessionList"),
+    sidebarStatusBtn: document.getElementById("sidebarStatusBtn"),
+    sourcesPopover: document.getElementById("sourcesPopover"),
     activeSessionTitle: document.getElementById("activeSessionTitle"),
-    mcpStatusChip: document.getElementById("mcpStatusChip"),
+    mcpStatusChip: document.getElementById("sidebarStatusBtn"),
     mcpStatusText: document.getElementById("mcpStatusText"),
     modelRoutingText: document.getElementById("modelRoutingText"),
     sidebarModelsText: document.getElementById("sidebarModelsText"),
@@ -70,6 +81,10 @@
     whatIfBankSelect: document.getElementById("whatIfBankSelect"),
     whatIfBaselineMeta: document.getElementById("whatIfBaselineMeta"),
     whatIfSlidersHost: document.getElementById("whatIfSlidersHost"),
+    whatIfMoreToggle: document.getElementById("whatIfMoreToggle"),
+    whatIfMoreIcon: document.getElementById("whatIfMoreIcon"),
+    whatIfMoreLabel: document.getElementById("whatIfMoreLabel"),
+    whatIfExtraSlidersHost: document.getElementById("whatIfExtraSlidersHost"),
     whatIfPosDisplay: document.getElementById("whatIfPosDisplay"),
     whatIfPosDelta: document.getElementById("whatIfPosDelta"),
     whatIfScoreDisplay: document.getElementById("whatIfScoreDisplay"),
@@ -94,8 +109,20 @@
     inspectorSubtitle: document.getElementById("inspectorSubtitle"),
     chatScroll: document.getElementById("chatScroll"),
     welcomeState: document.getElementById("welcomeState"),
+    homeBankStrip: document.getElementById("homeBankStrip"),
+    journeyBenchmarkTitle: document.getElementById("journeyBenchmarkTitle"),
+    journeyBenchmarkDesc: document.getElementById("journeyBenchmarkDesc"),
+    journeyWhatIfTitle: document.getElementById("journeyWhatIfTitle"),
+    journeyWhatIfDesc: document.getElementById("journeyWhatIfDesc"),
+    journeyWarRoomTitle: document.getElementById("journeyWarRoomTitle"),
+    journeyWarRoomDesc: document.getElementById("journeyWarRoomDesc"),
+    quickGcpLabel: document.getElementById("quickGcpLabel"),
+    quickPromptsRow: document.getElementById("quickPromptsRow"),
     starterGrid: document.getElementById("starterGrid"),
     messagesList: document.getElementById("messagesList"),
+    roleplayBanner: document.getElementById("roleplayBanner"),
+    roleplayBannerText: document.getElementById("roleplayBannerText"),
+    endRoleplayBtn: document.getElementById("endRoleplayBtn"),
     composerForm: document.getElementById("composerForm"),
     promptInput: document.getElementById("promptInput"),
     sendBtn: document.getElementById("sendBtn"),
@@ -257,6 +284,7 @@
     if (!user || !user.email) {
       dom.userPill.classList.add("hidden");
       dom.openAdminBtn.classList.add("hidden");
+      if (dom.accountPopover) dom.accountPopover.classList.add("hidden");
       return;
     }
     dom.openAdminBtn.classList.toggle("hidden", !user.is_admin);
@@ -264,6 +292,12 @@
     dom.userPill.title = user.email;
     const displayName = user.name || user.email.split("@")[0];
     dom.userPillName.textContent = displayName;
+    if (dom.accountPopoverName) {
+      dom.accountPopoverName.textContent = user.is_admin ? `${displayName} · Admin` : displayName;
+    }
+    if (dom.accountPopoverEmail) {
+      dom.accountPopoverEmail.textContent = user.email;
+    }
     if (user.picture && /^https:\/\//i.test(user.picture)) {
       dom.userAvatarImg.src = user.picture;
       dom.userAvatarImg.classList.remove("hidden");
@@ -356,7 +390,13 @@
       if (resp.ok) {
         const data = await resp.json();
         dom.logoutBtn.classList.toggle("hidden", !data.auth_enabled);
-        renderUserPill(data.user);
+        if (data.user) {
+          renderUserPill(data.user);
+        } else if (data.auth_enabled && data.authenticated) {
+          renderUserPill({ name: "Sessão Ativa", email: "Acesso autenticado", is_admin: false });
+        } else {
+          renderUserPill(null);
+        }
 
         const hasGoogle = Boolean(data.google_client_id);
         const hasToken = Boolean(data.token_login_enabled);
@@ -513,15 +553,22 @@
         dom.modelRoutingText.textContent = summary;
         dom.sidebarModelsText.textContent = `Gemini ${summary}`;
       }
+      const popoverStatusWrap = dom.popoverStatusText ? dom.popoverStatusText.parentElement : null;
       dom.mcpStatusChip.classList.remove("online", "offline");
+      if (popoverStatusWrap) popoverStatusWrap.classList.remove("online", "offline");
       if (data.mcp_healthy === true) {
         dom.mcpStatusChip.classList.add("online");
-        dom.mcpStatusText.textContent = "MCP BCB Online";
+        if (popoverStatusWrap) popoverStatusWrap.classList.add("online");
+        dom.mcpStatusText.textContent = "Dados BCB Online · 4 pilares";
+        if (dom.popoverStatusText) dom.popoverStatusText.textContent = "Dados BCB Online";
       } else if (data.mcp_healthy === false) {
         dom.mcpStatusChip.classList.add("offline");
-        dom.mcpStatusText.textContent = "MCP Offline";
+        if (popoverStatusWrap) popoverStatusWrap.classList.add("offline");
+        dom.mcpStatusText.textContent = "MCP BCB Offline";
+        if (dom.popoverStatusText) dom.popoverStatusText.textContent = "MCP Offline";
       } else {
-        dom.mcpStatusText.textContent = "MCP Configurado";
+        dom.mcpStatusText.textContent = "Dados BCB Configurados";
+        if (dom.popoverStatusText) dom.popoverStatusText.textContent = "Dados BCB";
       }
     } catch (_err) {
       dom.mcpStatusChip.classList.add("offline");
@@ -563,7 +610,8 @@
     state.activeSessionId = null;
     state.turns = [];
     state.selectedTraceId = null;
-    dom.activeSessionTitle.textContent = "Nova análise BCB";
+    dom.activeSessionTitle.textContent = "Nova análise";
+    if (dom.roleplayBanner) dom.roleplayBanner.classList.add("hidden");
     renderSessionList();
     renderAllTurns();
     renderInspector(null);
@@ -647,12 +695,25 @@
 
   function renderSessionList() {
     dom.sessionList.innerHTML = "";
+    if (dom.sessionSearchWrap) {
+      dom.sessionSearchWrap.classList.toggle("hidden", state.sessions.length < 4);
+    }
     if (!state.sessions.length) {
       dom.sessionList.innerHTML = `<div class="session-empty-hint">Nenhuma análise anterior ainda.</div>`;
       return;
     }
 
-    for (const s of state.sessions) {
+    const q = (state.sessionFilter || "").trim().toLowerCase();
+    const filtered = q
+      ? state.sessions.filter((s) => String(s.title || "").toLowerCase().includes(q))
+      : state.sessions;
+
+    if (!filtered.length) {
+      dom.sessionList.innerHTML = `<div class="session-empty-hint">Nenhuma análise encontrada para "${escapeHtml(q)}".</div>`;
+      return;
+    }
+
+    for (const s of filtered) {
       const btn = document.createElement("div");
       btn.className = `session-item${s.session_id === state.activeSessionId ? " active" : ""}`;
       btn.setAttribute("role", "button");
@@ -684,7 +745,7 @@
       dom.inspectorBody.innerHTML = `
         <div class="inspector-empty">
           <span class="material-symbols-outlined">analytics</span>
-          <p>Clique em <strong>Ver rastreamento</strong> em qualquer resposta para visualizar o grafo de agentes, chamadas MCP BCB e o veredito do Quality Critic.</p>
+          <p>Clique em <strong>Auditoria</strong> em qualquer resposta para visualizar os agentes executados, chamadas ao Banco Central e a validação de qualidade.</p>
         </div>`;
       return;
     }
@@ -697,9 +758,13 @@
     const sections = [];
 
     // 1. Agents Orchestration Card
-    const agentsHtml = (turn.agents || [])
+      const agentsHtml = (turn.agents || [])
       .map((ag) => {
-        const isPro = ag === "fintech_analyst" || ag === "gcp_cloud_consultant";
+        const isPro =
+          ag === "fintech_analyst" ||
+          ag === "gcp_cloud_consultant" ||
+          ag === "warroom_pitch_coach" ||
+          ag === "boardroom_roleplay_agent";
         const modelTag = isPro
           ? `<span class="model-tag pro">Gemini Pro</span>`
           : `<span class="model-tag">Gemini Flash</span>`;
@@ -791,6 +856,7 @@
         dom.messagesList.appendChild(createAssistantCardEl(turn));
       }
     }
+    updateRoleplayBanner();
     scrollToBottom();
   }
 
@@ -840,32 +906,36 @@
       <div class="assistant-content">${renderMarkdownSafe(turn.assistant_text)}</div>
 
       <div class="assistant-actions">
-        <div class="action-group">
-          <button class="btn-pdf-export" type="button" data-action="export-pdf">
-            <span class="material-symbols-outlined">picture_as_pdf</span>
-            <span>Exportar PDF</span>
-          </button>
-          <button class="btn-gcp-advisory" type="button" data-action="gcp-plan" title="Gerar iniciativas e casos de uso Google Cloud a partir desta análise">
-            <span class="material-symbols-outlined">cloud_done</span>
-            <span>Plano Google Cloud</span>
-          </button>
-          <button class="btn-whatif-action" type="button" data-action="open-whatif" title="Abrir simulador interativo What-If de ranking BCB">
-            <span class="material-symbols-outlined">tune</span>
-            <span>Simular What-If</span>
-          </button>
-          <button class="btn-warroom-action" type="button" data-action="open-warroom" title="Abrir Boardroom War Room C-Level (CTO · CRO · CFO)">
-            <span class="material-symbols-outlined">groups</span>
-            <span>War Room C-Level</span>
-          </button>
-          <button class="btn-secondary" type="button" data-action="copy-md">
+        <button class="btn-pdf-export" type="button" data-action="export-pdf">
+          <span class="material-symbols-outlined">picture_as_pdf</span>
+          <span>Exportar PDF</span>
+        </button>
+        <div class="utility-actions">
+          <button class="btn-ghost-util" type="button" data-action="copy-md" title="Copiar texto em Markdown">
             <span class="material-symbols-outlined">content_copy</span>
             <span>Copiar</span>
           </button>
-          <button class="btn-secondary" type="button" data-action="inspect-trace">
+          <button class="btn-ghost-util" type="button" data-action="inspect-trace" title="Ver agentes, fontes BCB e auditoria de qualidade">
             <span class="material-symbols-outlined">account_tree</span>
-            <span>Ver rastreamento</span>
+            <span>Auditoria</span>
           </button>
         </div>
+      </div>
+
+      <div class="next-steps-bar">
+        <span class="next-steps-label">Próximo passo:</span>
+        <button class="next-step-chip" type="button" data-action="gcp-plan">
+          <span class="material-symbols-outlined">cloud_done</span>
+          <span>Plano Google Cloud</span>
+        </button>
+        <button class="next-step-chip" type="button" data-action="open-whatif">
+          <span class="material-symbols-outlined">tune</span>
+          <span>Simular What-If</span>
+        </button>
+        <button class="next-step-chip" type="button" data-action="open-warroom">
+          <span class="material-symbols-outlined">groups</span>
+          <span>War Room C-Level</span>
+        </button>
       </div>
 
       <div class="gcp-bank-picker" data-role="gcp-bank-picker">
@@ -989,15 +1059,51 @@
         <div class="progress-top">
           <div class="progress-headline">
             <span class="material-symbols-outlined">sync</span>
-            <span class="progress-label">Iniciando orquestração multi-agente...</span>
+            <span class="progress-label">Consultando o Bacen Advisor...</span>
           </div>
-          <span class="progress-timer">0s</span>
+          <div style="display:inline-flex;align-items:center;gap:8px">
+            <span class="progress-timer">0s</span>
+            <button type="button" class="progress-details-toggle" data-action="toggle-details">
+              <span>Detalhes</span>
+              <span class="material-symbols-outlined" style="font-size:15px">expand_more</span>
+            </button>
+          </div>
         </div>
-        <div class="step-trail"></div>
-        <div class="live-tools"></div>
+        <div class="progress-tech-details hidden" data-role="tech-details">
+          <div class="step-trail"></div>
+          <div class="live-tools"></div>
+        </div>
       </div>
     `;
+    const toggleBtn = card.querySelector('[data-action="toggle-details"]');
+    const detailsBox = card.querySelector('[data-role="tech-details"]');
+    toggleBtn.addEventListener("click", () => {
+      const hidden = detailsBox.classList.toggle("hidden");
+      toggleBtn.querySelector(".material-symbols-outlined").textContent = hidden
+        ? "expand_more"
+        : "expand_less";
+    });
     return card;
+  }
+
+  function updateRoleplayBanner() {
+    if (!dom.roleplayBanner) return;
+    const lastTurn = state.turns.length ? state.turns[state.turns.length - 1] : null;
+    const isRoleplay =
+      lastTurn &&
+      ((lastTurn.agents || []).includes("boardroom_roleplay_agent") ||
+        lastTurn.final_agent === "boardroom_roleplay_agent");
+    const isFinished =
+      lastTurn && /Relatório Final de Preparação/i.test(lastTurn.assistant_text || "");
+    if (isRoleplay && !isFinished) {
+      const headingMatch = String(lastTurn.assistant_text || "").match(/^##\s+(.+)$/m);
+      dom.roleplayBannerText.textContent = headingMatch
+        ? `${headingMatch[1].replace(/[*`]/g, "")} · Responda à objeção abaixo`
+        : "Modo Roleplay 1:1 ativo · Responda à objeção do executivo abaixo";
+      dom.roleplayBanner.classList.remove("hidden");
+    } else {
+      dom.roleplayBanner.classList.add("hidden");
+    }
   }
 
   // ------------------------------------------------------------------------
@@ -1012,7 +1118,11 @@
     dom.welcomeState.classList.add("hidden");
     if (userDisplayPrompt) {
       dom.messagesList.appendChild(createUserBubbleEl(userDisplayPrompt));
-      if (!state.activeSessionId || dom.activeSessionTitle.textContent === "Nova análise BCB") {
+      if (
+        !state.activeSessionId ||
+        dom.activeSessionTitle.textContent === "Nova análise" ||
+        dom.activeSessionTitle.textContent === "Nova análise BCB"
+      ) {
         dom.activeSessionTitle.textContent =
           userDisplayPrompt.length > 58 ? userDisplayPrompt.slice(0, 58) + "..." : userDisplayPrompt;
       }
@@ -1169,6 +1279,7 @@
           dom.messagesList.appendChild(createAssistantCardEl(turn));
           renderInspector(turn);
         }
+        updateRoleplayBanner();
         scrollToBottom();
       } else if (eventName === "error") {
         progressEl.remove();
@@ -1221,6 +1332,59 @@
     dom.appShell.classList.remove("mobile-sidebar-open");
   }
 
+  function closeAccountPopover() {
+    if (!dom.accountPopover) return;
+    dom.accountPopover.classList.add("hidden");
+    if (dom.userPill) dom.userPill.setAttribute("aria-expanded", "false");
+  }
+
+  function closeSourcesPopover() {
+    if (!dom.sourcesPopover) return;
+    dom.sourcesPopover.classList.add("hidden");
+  }
+
+  function applyHomeBankFocus(bankCode) {
+    state.homeBank = bankCode || "";
+    if (dom.homeBankStrip) {
+      dom.homeBankStrip.querySelectorAll("[data-home-bank]").forEach((btn) => {
+        btn.classList.toggle("active", (btn.getAttribute("data-home-bank") || "") === state.homeBank);
+      });
+    }
+    const label = state.homeBank ? bankLabelFromCode(state.homeBank) : "";
+    if (label) {
+      if (dom.journeyBenchmarkTitle) dom.journeyBenchmarkTitle.textContent = `Diagnóstico ${label} (BCB)`;
+      if (dom.journeyBenchmarkDesc) {
+        dom.journeyBenchmarkDesc.textContent = `Compare ${label} frente a bancos digitais e tradicionais nos 4 pilares oficiais do Banco Central.`;
+      }
+      if (dom.journeyWhatIfTitle) dom.journeyWhatIfTitle.textContent = `Simular Metas · ${label}`;
+      if (dom.journeyWhatIfDesc) {
+        dom.journeyWhatIfDesc.textContent = `Ajuste indicadores de ${label} ao vivo para projetar ganho no ranking e gerar Business Case.`;
+      }
+      if (dom.journeyWarRoomTitle) dom.journeyWarRoomTitle.textContent = `War Room · ${label}`;
+      if (dom.journeyWarRoomDesc) {
+        dom.journeyWarRoomDesc.textContent = `Antecipe objeções de CTO, CRO e CFO de ${label} ou treine seu pitch em roleplay 1:1.`;
+      }
+      if (dom.quickGcpLabel) dom.quickGcpLabel.textContent = `Plano Google Cloud para ${label}`;
+    } else {
+      if (dom.journeyBenchmarkTitle) dom.journeyBenchmarkTitle.textContent = "Comparar Bancos (BCB)";
+      if (dom.journeyBenchmarkDesc) {
+        dom.journeyBenchmarkDesc.textContent =
+          "Benchmark completo em reclamações, taxas de crédito, Pix/MED e saúde financeira.";
+      }
+      if (dom.journeyWhatIfTitle) dom.journeyWhatIfTitle.textContent = "Simular Metas (What-If)";
+      if (dom.journeyWhatIfDesc) {
+        dom.journeyWhatIfDesc.textContent =
+          "Ajuste indicadores ao vivo para projetar ganho no ranking e gerar Business Case.";
+      }
+      if (dom.journeyWarRoomTitle) dom.journeyWarRoomTitle.textContent = "Preparar Reunião C-Level";
+      if (dom.journeyWarRoomDesc) {
+        dom.journeyWarRoomDesc.textContent =
+          "Simule objeções reais de CTO, CRO e CFO ou treine seu pitch em roleplay 1:1.";
+      }
+      if (dom.quickGcpLabel) dom.quickGcpLabel.textContent = "Plano Google Cloud para o Bradesco";
+    }
+  }
+
   function bindEvents() {
     dom.toggleSidebarBtn.addEventListener("click", () => {
       if (window.innerWidth <= 820) {
@@ -1234,6 +1398,54 @@
     dom.sidebarBackdrop.addEventListener("click", closeMobileSidebar);
     dom.newSessionBtn.addEventListener("click", startNewSession);
 
+    // Account Popover Menu (Admin, System Status, Logout)
+    if (dom.userPill && dom.accountPopover) {
+      dom.userPill.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeSourcesPopover();
+        const willOpen = dom.accountPopover.classList.contains("hidden");
+        dom.accountPopover.classList.toggle("hidden", !willOpen);
+        dom.userPill.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      });
+    }
+
+    // Sidebar Official BCB Sources Popover
+    if (dom.sidebarStatusBtn && dom.sourcesPopover) {
+      dom.sidebarStatusBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeAccountPopover();
+        dom.sourcesPopover.classList.toggle("hidden");
+      });
+    }
+
+    // Dismiss popovers on outside click
+    document.addEventListener("click", (e) => {
+      if (
+        dom.accountPopover &&
+        !dom.accountPopover.classList.contains("hidden") &&
+        !dom.accountPopover.contains(e.target) &&
+        !dom.userPill.contains(e.target)
+      ) {
+        closeAccountPopover();
+      }
+      if (
+        dom.sourcesPopover &&
+        !dom.sourcesPopover.classList.contains("hidden") &&
+        !dom.sourcesPopover.contains(e.target) &&
+        !dom.sidebarStatusBtn.contains(e.target)
+      ) {
+        closeSourcesPopover();
+      }
+    });
+
+    // Sidebar Session Search
+    if (dom.sessionSearchInput) {
+      dom.sessionSearchInput.addEventListener("input", () => {
+        state.sessionFilter = dom.sessionSearchInput.value || "";
+        renderSessionList();
+      });
+    }
+
     dom.toggleInspectorBtn.addEventListener("click", () => {
       const open = dom.appShell.classList.toggle("inspector-open");
       dom.toggleInspectorBtn.classList.toggle("active", open);
@@ -1244,21 +1456,82 @@
       dom.toggleInspectorBtn.classList.remove("active");
     });
 
-    dom.starterGrid.querySelectorAll(".starter-card").forEach((card) => {
+    // Home Quick Bank Focus Strip
+    if (dom.homeBankStrip) {
+      dom.homeBankStrip.querySelectorAll("[data-home-bank]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          applyHomeBankFocus(btn.getAttribute("data-home-bank") || "");
+        });
+      });
+    }
+
+    // Guided 3-Card Home Journeys
+    dom.starterGrid.querySelectorAll(".journey-card").forEach((card) => {
       card.addEventListener("click", () => {
-        const modalType = card.getAttribute("data-open-modal");
-        if (modalType === "whatif") {
-          openWhatIfModal("BRADESCO");
+        const journey = card.getAttribute("data-journey");
+        const targetCode = state.homeBank || "BRADESCO";
+        const targetLabel = bankLabelFromCode(targetCode);
+        if (journey === "whatif") {
+          openWhatIfModal(targetCode);
           return;
         }
-        if (modalType === "warroom") {
-          openWarRoomModal("BRADESCO");
+        if (journey === "warroom") {
+          openWarRoomModal(targetCode);
           return;
         }
-        const prompt = card.getAttribute("data-prompt");
-        if (prompt) sendPrompt(prompt);
+        if (journey === "benchmark") {
+          if (state.homeBank) {
+            sendPrompt(
+              `Faça um diagnóstico completo do ${targetLabel} nos 4 pilares oficiais do Banco Central (Reclamações Deati, Taxas de Crédito Olinda, Pix/SPI/MED e IF.data/Open Finance) comparando com seus principais concorrentes digitais e incumbentes.`
+            );
+          } else {
+            sendPrompt(
+              "Compare Nubank, Itaú, Bradesco, Inter e C6 Bank nos 4 pilares do Banco Central (Reclamações, Taxas de Crédito, Pix/MED e Saúde Prudencial/Open Finance) e entregue um ranking consolidado."
+            );
+          }
+        }
       });
     });
+
+    // Whisper-Quiet Secondary Prompt Chips
+    if (dom.quickPromptsRow) {
+      dom.quickPromptsRow.querySelectorAll(".quick-prompt-chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const action = chip.getAttribute("data-quick-action");
+          if (action === "gcp-plan") {
+            const targetLabel = bankLabelFromCode(state.homeBank || "BRADESCO");
+            sendPrompt(
+              `Com base nos dados oficiais do Banco Central, atue como consultor sênior de Google Cloud e gere um plano priorizado de oportunidades, arquiteturas de referência e casos de uso para o ${targetLabel}.`
+            );
+            return;
+          }
+          const prompt = chip.getAttribute("data-prompt");
+          if (prompt) sendPrompt(prompt);
+        });
+      });
+    }
+
+    // Active Roleplay Context Banner Action
+    if (dom.endRoleplayBtn) {
+      dom.endRoleplayBtn.addEventListener("click", () => {
+        if (state.isStreaming) return;
+        sendPrompt(
+          "Encerre o roleplay agora e apresente o Relatório Final de Preparação Executiva com nota geral e os 3 principais pontos para levar à reunião."
+        );
+      });
+    }
+
+    // What-If Progressive Disclosure Toggle
+    if (dom.whatIfMoreToggle && dom.whatIfExtraSlidersHost) {
+      dom.whatIfMoreToggle.addEventListener("click", () => {
+        const isHidden = dom.whatIfExtraSlidersHost.classList.toggle("hidden");
+        dom.whatIfMoreToggle.setAttribute("aria-expanded", isHidden ? "false" : "true");
+        if (dom.whatIfMoreIcon) {
+          dom.whatIfMoreIcon.textContent = isHidden ? "expand_more" : "expand_less";
+        }
+        syncWhatIfMoreLabel();
+      });
+    }
 
     dom.promptInput.addEventListener("input", () => {
       autoResizeTextarea();
@@ -1303,6 +1576,7 @@
         }
         hideAuthOverlay();
         dom.logoutBtn.classList.remove("hidden");
+        renderUserPill({ name: "Sessão Ativa", email: "Acesso autenticado", is_admin: false });
         showSnackbar("Acesso liberado.");
         loadHealth();
         loadSessions();
@@ -1314,6 +1588,7 @@
     });
 
     dom.logoutBtn.addEventListener("click", async () => {
+      closeAccountPopover();
       if (window.google && window.google.accounts && window.google.accounts.id) {
         window.google.accounts.id.disableAutoSelect();
       }
@@ -1330,13 +1605,18 @@
       showAuthOverlay("");
     });
 
-    dom.openAdminBtn.addEventListener("click", openAdminModal);
+    dom.openAdminBtn.addEventListener("click", () => {
+      closeAccountPopover();
+      openAdminModal();
+    });
     dom.closeAdminModalBtn.addEventListener("click", closeAdminModal);
     dom.adminModalBackdrop.addEventListener("click", (e) => {
       if (e.target === dom.adminModalBackdrop) closeAdminModal();
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
+        closeAccountPopover();
+        closeSourcesPopover();
         if (!dom.adminModalBackdrop.classList.contains("hidden")) closeAdminModal();
         if (!dom.whatIfModalBackdrop.classList.contains("hidden")) closeWhatIfModal();
         if (!dom.warRoomModalBackdrop.classList.contains("hidden")) closeWarRoomModal();
@@ -1349,7 +1629,10 @@
     });
 
     // What-If Simulator modal bindings
-    dom.openWhatIfBtn.addEventListener("click", () => openWhatIfModal());
+    dom.openWhatIfBtn.addEventListener("click", () => {
+      closeMobileSidebar();
+      openWhatIfModal(state.homeBank || undefined);
+    });
     dom.closeWhatIfModalBtn.addEventListener("click", closeWhatIfModal);
     dom.cancelWhatIfBtn.addEventListener("click", closeWhatIfModal);
     dom.whatIfModalBackdrop.addEventListener("click", (e) => {
@@ -1365,7 +1648,10 @@
     dom.launchWhatIfBusinessCaseBtn.addEventListener("click", launchWhatIfBusinessCase);
 
     // Boardroom War Room modal bindings
-    dom.openWarRoomBtn.addEventListener("click", () => openWarRoomModal());
+    dom.openWarRoomBtn.addEventListener("click", () => {
+      closeMobileSidebar();
+      openWarRoomModal(state.homeBank || undefined);
+    });
     dom.closeWarRoomModalBtn.addEventListener("click", closeWarRoomModal);
     dom.cancelWarRoomBtn.addEventListener("click", closeWarRoomModal);
     dom.warRoomModalBackdrop.addEventListener("click", (e) => {
@@ -1507,6 +1793,20 @@
     },
   ];
 
+  const WHATIF_CORE_FIELDS = new Set([
+    "indice_reclamacoes",
+    "taxa_juros_mensal_pct",
+    "med_por_100k",
+    "roe_anualizado_pct",
+  ]);
+
+  const WHATIF_SECONDARY_FIELDS = new Set([
+    "disponibilidade_spi_pct",
+    "taxa_devolucao_med_pct",
+    "inadimplencia_90d_pct",
+    "disponibilidade_open_finance_pct",
+  ]);
+
   const whatIfState = {
     baseline: null,
     targetInstitution: "BRADESCO",
@@ -1514,6 +1814,22 @@
     lastResult: null,
     debounceTimer: null,
   };
+
+  function syncWhatIfMoreLabel() {
+    if (!dom.whatIfMoreLabel || !dom.whatIfExtraSlidersHost) return;
+    const isHidden = dom.whatIfExtraSlidersHost.classList.contains("hidden");
+    const modifiedExtraCount = Object.keys(whatIfState.overrides).filter((k) =>
+      WHATIF_SECONDARY_FIELDS.has(k)
+    ).length;
+    if (!isHidden) {
+      dom.whatIfMoreLabel.textContent = "Ocultar 4 indicadores avançados";
+    } else if (modifiedExtraCount > 0) {
+      dom.whatIfMoreLabel.textContent = `Mostrar mais 4 indicadores avançados (${modifiedExtraCount} alterado${modifiedExtraCount > 1 ? "s" : ""} pelo cenário)`;
+    } else {
+      dom.whatIfMoreLabel.textContent =
+        "Mostrar mais 4 indicadores (SPI, Devolução MED, Inadimplência, Open Finance)";
+    }
+  }
 
   function bankLabelFromCode(code) {
     const found = SUPPORTED_BANKS.find((b) => b.code === code);
@@ -1540,11 +1856,21 @@
 
   async function openWhatIfModal(preferredBankCode) {
     dom.whatIfModalBackdrop.classList.remove("hidden");
+    if (dom.whatIfExtraSlidersHost) {
+      dom.whatIfExtraSlidersHost.classList.add("hidden");
+    }
+    if (dom.whatIfMoreToggle) {
+      dom.whatIfMoreToggle.setAttribute("aria-expanded", "false");
+    }
+    if (dom.whatIfMoreIcon) {
+      dom.whatIfMoreIcon.textContent = "expand_more";
+    }
     const bankCode = preferredBankCode || whatIfState.targetInstitution || "BRADESCO";
     whatIfState.targetInstitution = bankCode;
     populateBankSelect(dom.whatIfBankSelect, bankCode);
 
     if (!whatIfState.baseline) {
+      if (dom.whatIfMoreToggle) dom.whatIfMoreToggle.classList.add("hidden");
       dom.whatIfBaselineMeta.textContent = "Carregando baseline oficial dos 4 pilares no MCP BCB...";
       dom.whatIfSlidersHost.innerHTML = `<p class="whatif-empty-hint" style="padding:18px">Consultando séries oficiais do Banco Central...</p>`;
       try {
@@ -1614,58 +1940,61 @@
     runWhatIfSimulationNow();
   }
 
-  function renderWhatIfSliders() {
-    const rec = getTargetBaselineRecord();
-    if (!rec) return;
+  function buildSliderCardHtml(grp, slidersSubset, rec, includePillarScore) {
+    if (!slidersSubset.length) return "";
+    const itemsHtml = slidersSubset
+      .map((s) => {
+        const baseVal = Number(rec[s.field] ?? s.min);
+        const curVal =
+          whatIfState.overrides[s.field] != null ? Number(whatIfState.overrides[s.field]) : baseVal;
+        const diff = curVal - baseVal;
+        const changed = Math.abs(diff) > 1e-4;
+        const improved = s.direction === "lower_is_better" ? diff < 0 : diff > 0;
+        const deltaHtml = changed
+          ? `<span class="slider-delta ${improved ? "improved" : "worsened"}">${diff > 0 ? "+" : ""}${diff.toFixed(s.decimals)}${s.unit}</span>`
+          : "";
 
-    dom.whatIfSlidersHost.innerHTML = WHATIF_SLIDER_GROUPS.map((grp) => {
-      const itemsHtml = grp.sliders
-        .map((s) => {
-          const baseVal = Number(rec[s.field] ?? s.min);
-          const curVal =
-            whatIfState.overrides[s.field] != null ? Number(whatIfState.overrides[s.field]) : baseVal;
-          const diff = curVal - baseVal;
-          const changed = Math.abs(diff) > 1e-4;
-          const improved = s.direction === "lower_is_better" ? diff < 0 : diff > 0;
-          const deltaHtml = changed
-            ? `<span class="slider-delta ${improved ? "improved" : "worsened"}">${diff > 0 ? "+" : ""}${diff.toFixed(s.decimals)}${s.unit}</span>`
-            : "";
+        return `
+          <div class="slider-item" data-field="${s.field}">
+            <div class="slider-row-top">
+              <span class="slider-label">${escapeHtml(s.label)} <span class="slider-floor-tag">(${escapeHtml(s.floorHint)})</span></span>
+              <span class="slider-val-group">
+                <span class="slider-before">${baseVal.toFixed(s.decimals)}${s.unit}</span>
+                <span>→</span>
+                <span class="slider-after" data-role="val-${s.field}">${curVal.toFixed(s.decimals)}${s.unit}</span>
+                <span data-role="delta-${s.field}">${deltaHtml}</span>
+              </span>
+            </div>
+            <input
+              type="range"
+              class="m3-range"
+              data-slider-field="${s.field}"
+              min="${s.min}"
+              max="${s.max}"
+              step="${s.step}"
+              value="${curVal}"
+            />
+          </div>`;
+      })
+      .join("");
 
-          return `
-            <div class="slider-item" data-field="${s.field}">
-              <div class="slider-row-top">
-                <span class="slider-label">${escapeHtml(s.label)} <span class="slider-floor-tag">(${escapeHtml(s.floorHint)})</span></span>
-                <span class="slider-val-group">
-                  <span class="slider-before">${baseVal.toFixed(s.decimals)}${s.unit}</span>
-                  <span>→</span>
-                  <span class="slider-after" data-role="val-${s.field}">${curVal.toFixed(s.decimals)}${s.unit}</span>
-                  <span data-role="delta-${s.field}">${deltaHtml}</span>
-                </span>
-              </div>
-              <input
-                type="range"
-                class="m3-range"
-                data-slider-field="${s.field}"
-                min="${s.min}"
-                max="${s.max}"
-                step="${s.step}"
-                value="${curVal}"
-              />
-            </div>`;
-        })
-        .join("");
+    const badgeHtml = includePillarScore
+      ? `<span class="slider-pillar-score" data-pillar-score="${grp.pillarKey}">—</span>`
+      : `<span class="slider-pillar-score" data-pillar-score="${grp.pillarKey}">Avançado</span>`;
 
-      return `
-        <div class="slider-pillar-group">
-          <div class="slider-pillar-head">
-            <span class="slider-pillar-title">${escapeHtml(grp.title)}</span>
-            <span class="slider-pillar-score" data-pillar-score="${grp.pillarKey}">—</span>
-          </div>
-          ${itemsHtml}
-        </div>`;
-    }).join("");
+    return `
+      <div class="slider-pillar-group">
+        <div class="slider-pillar-head">
+          <span class="slider-pillar-title">${escapeHtml(grp.title)}</span>
+          ${badgeHtml}
+        </div>
+        ${itemsHtml}
+      </div>`;
+  }
 
-    dom.whatIfSlidersHost.querySelectorAll("[data-slider-field]").forEach((input) => {
+  function bindSliderInputsInContainer(container, rec) {
+    if (!container) return;
+    container.querySelectorAll("[data-slider-field]").forEach((input) => {
       input.addEventListener("input", () => {
         const field = input.getAttribute("data-slider-field");
         const meta = WHATIF_SLIDER_GROUPS.flatMap((g) => g.sliders).find((s) => s.field === field);
@@ -1677,8 +2006,8 @@
         } else {
           whatIfState.overrides[field] = val;
         }
-        const valEl = dom.whatIfSlidersHost.querySelector(`[data-role="val-${field}"]`);
-        const deltaEl = dom.whatIfSlidersHost.querySelector(`[data-role="delta-${field}"]`);
+        const valEl = container.querySelector(`[data-role="val-${field}"]`);
+        const deltaEl = container.querySelector(`[data-role="delta-${field}"]`);
         if (valEl) valEl.textContent = `${val.toFixed(meta.decimals)}${meta.unit}`;
         if (deltaEl) {
           const diff = val - baseVal;
@@ -1689,9 +2018,45 @@
             deltaEl.innerHTML = "";
           }
         }
+        syncWhatIfMoreLabel();
         scheduleWhatIfSimulation();
       });
     });
+  }
+
+  function renderWhatIfSliders() {
+    const rec = getTargetBaselineRecord();
+    if (!rec) return;
+
+    const coreHtml = WHATIF_SLIDER_GROUPS.map((grp) =>
+      buildSliderCardHtml(
+        grp,
+        grp.sliders.filter((s) => WHATIF_CORE_FIELDS.has(s.field)),
+        rec,
+        true
+      )
+    ).join("");
+
+    const extraHtml = WHATIF_SLIDER_GROUPS.map((grp) =>
+      buildSliderCardHtml(
+        grp,
+        grp.sliders.filter((s) => !WHATIF_CORE_FIELDS.has(s.field)),
+        rec,
+        false
+      )
+    ).join("");
+
+    dom.whatIfSlidersHost.innerHTML = coreHtml;
+    if (dom.whatIfExtraSlidersHost) {
+      dom.whatIfExtraSlidersHost.innerHTML = extraHtml;
+    }
+    if (dom.whatIfMoreToggle) {
+      dom.whatIfMoreToggle.classList.remove("hidden");
+    }
+
+    bindSliderInputsInContainer(dom.whatIfSlidersHost, rec);
+    bindSliderInputsInContainer(dom.whatIfExtraSlidersHost, rec);
+    syncWhatIfMoreLabel();
   }
 
   function scheduleWhatIfSimulation() {
@@ -1733,13 +2098,15 @@
     dom.whatIfScoreDelta.textContent = `${sDelta > 0 ? "+" : ""}${sDelta.toFixed(2)} pts`;
     dom.whatIfScoreDelta.className = `kpi-delta-pill ${sDelta > 0 ? "positive" : sDelta < 0 ? "negative" : "neutral"}`;
 
-    // 2. Pillar score badges inside slider groups
+    // 2. Pillar score badges inside both core and extra slider groups
     (res.pillar_deltas || []).forEach((pd) => {
-      const el = dom.whatIfSlidersHost.querySelector(`[data-pillar-score="${pd.pillar}"]`);
-      if (!el) return;
       const d = Number(pd.delta_score || 0);
-      el.textContent = `${pd.before_score.toFixed(2)} → ${pd.after_score.toFixed(2)}${Math.abs(d) > 0.005 ? ` (${d > 0 ? "+" : ""}${d.toFixed(2)})` : ""}`;
-      el.className = `slider-pillar-score ${d > 0.005 ? "up" : d < -0.005 ? "down" : ""}`;
+      const txt = `${pd.before_score.toFixed(2)} → ${pd.after_score.toFixed(2)}${Math.abs(d) > 0.005 ? ` (${d > 0 ? "+" : ""}${d.toFixed(2)})` : ""}`;
+      const cls = `slider-pillar-score ${d > 0.005 ? "up" : d < -0.005 ? "down" : ""}`;
+      dom.whatIfModalBackdrop.querySelectorAll(`[data-pillar-score="${pd.pillar}"]`).forEach((el) => {
+        el.textContent = txt;
+        el.className = cls;
+      });
     });
 
     // 3. Overtaken rivals

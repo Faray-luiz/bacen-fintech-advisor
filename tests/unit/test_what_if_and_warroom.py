@@ -172,6 +172,12 @@ def test_web_ui_simulator_endpoints_and_auth_protection():
     assert "warRoomModalBackdrop" in home.text
     assert "openWhatIfBtn" in home.text
     assert "openWarRoomBtn" in home.text
+    assert "accountPopover" in home.text
+    assert "homeBankStrip" in home.text
+    assert "whatIfMoreToggle" in home.text
+    assert "roleplayBanner" in home.text
+    assert "sidebarStatusBtn" in home.text
+    assert "sessionSearchInput" in home.text
 
     base_resp = client.get("/api/simulator/baseline")
     assert base_resp.status_code == 200
