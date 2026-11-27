@@ -43,9 +43,16 @@ _INTERMEDIATE_PIPELINE_AGENTS = {
     "gcp_data_prep",
     "gcp_cloud_consultant",
     "gcp_advisory_critic",
+    "warroom_data_prep",
+    "warroom_c_level_panel",
+    "persona_cto",
+    "persona_cro",
+    "persona_cfo",
+    "warroom_pitch_coach",
+    "warroom_critic",
 }
-_CRITIC_AGENTS = {"quality_critic", "gcp_advisory_critic"}
-_PUBLISHER_AGENTS = {"report_publisher", "gcp_advisory_publisher"}
+_CRITIC_AGENTS = {"quality_critic", "gcp_advisory_critic", "warroom_critic"}
+_PUBLISHER_AGENTS = {"report_publisher", "gcp_advisory_publisher", "warroom_publisher"}
 
 _AGENT_STAGE_LABELS: dict[str, tuple[str, str]] = {
     "bacen_coordinator": ("Roteando consulta", "Flash"),
@@ -61,6 +68,16 @@ _AGENT_STAGE_LABELS: dict[str, tuple[str, str]] = {
     "gcp_cloud_consultant": ("Consultor Sênior Google Cloud mapeando oportunidades & arquiteturas", "Pro"),
     "gcp_advisory_critic": ("Auditando números BCB e catálogo Google Cloud (Critic)", "Flash"),
     "gcp_advisory_publisher": ("Consolidando plano executivo Google Cloud final", "Flash"),
+    "boardroom_warroom_pipeline": ("Iniciando Boardroom War Room (CTO · CRO · CFO)", "Pipeline"),
+    "warroom_data_prep": ("Preparando métricas oficiais BCB para a sala de diretoria", "Flash"),
+    "warroom_c_level_panel": ("Executando painel C-Level em paralelo (CTO · CRO · CFO)", "Parallel"),
+    "persona_cto": ("CTO avaliando arquitetura, latência SPI e risco de migração", "Flash"),
+    "persona_cro": ("CRO / Compliance auditando CMN 4.893, LGPD, MED e Deati", "Flash"),
+    "persona_cfo": ("CFO pressionando ROE, FinOps e retorno em 0–90 dias", "Flash"),
+    "warroom_pitch_coach": ("Pitch Coach sintetizando contra-argumentos e battlecard GCP", "Pro"),
+    "warroom_critic": ("Auditando groundedness do Dossiê War Room (Critic)", "Flash"),
+    "warroom_publisher": ("Publicando Dossiê Executivo de Boardroom War Room", "Flash"),
+    "boardroom_roleplay_agent": ("Simulador de Roleplay Executivo 1:1 (Pitch Coach)", "Pro"),
 }
 
 
@@ -114,6 +131,16 @@ class PdfExportRequest(BaseModel):
     latency_s: float | None = Field(default=None, ge=0)
     critic_verdict: dict[str, Any] | None = None
     session_id: str | None = None
+
+
+class WhatIfSimulateRequest(BaseModel):
+    """Payload for ``POST /api/simulator/what-if``."""
+
+    target_institution: str = Field(min_length=2, max_length=80)
+    overrides: dict[str, float | None] = Field(default_factory=dict)
+    weights: dict[str, float] | None = None
+    modalidade_credito: str = Field(default="CARTAO_ROTATIVO", max_length=60)
+    benchmark_records: list[dict[str, Any]] | None = None
 
 
 # --------------------------------------------------------------------------------------
@@ -189,6 +216,18 @@ def _summarize_tool_response(resp: Any) -> dict[str, Any]:
             "status": status,
             "summary": f"{len(resp['solutions'])} iniciativas Google Cloud FSI selecionadas (catálogo: {cat_size})",
         }
+    if "positions_gained" in resp and resp.get("target_institution"):
+        pos_b = resp.get("position_before")
+        pos_a = resp.get("position_after")
+        delta = resp.get("score_delta", 0)
+        return {
+            "status": status,
+            "summary": (
+                f"What-If {resp['target_institution']}: #{pos_b} → #{pos_a} "
+                f"(score {resp.get('score_before_0_10')} → {resp.get('score_after_0_10')}, "
+                f"{delta:+.2f} pts)"
+            ),
+        }
     if "gcs_uri" in resp and resp["gcs_uri"]:
         return {"status": status, "summary": f"Exportado para {resp['gcs_uri']}"}
     if "error_message" in resp and resp["error_message"]:
@@ -213,11 +252,26 @@ def _try_parse_critic_verdict(text: str) -> dict[str, Any] | None:
 def _agent_model_label(agent_name: str, routing: dict[str, str]) -> str:
     if agent_name == "fintech_analyst":
         return routing.get("analyst", "gemini-pro")
-    if agent_name == "gcp_cloud_consultant":
+    if agent_name in ("gcp_cloud_consultant", "warroom_pitch_coach", "boardroom_roleplay_agent"):
         return routing.get("consultant", routing.get("analyst", "gemini-pro"))
-    if agent_name in ("data_collector", "quick_data_agent", "gcp_data_prep"):
+    if agent_name in (
+        "data_collector",
+        "quick_data_agent",
+        "gcp_data_prep",
+        "warroom_data_prep",
+        "persona_cto",
+        "persona_cro",
+        "persona_cfo",
+    ):
         return routing.get("collector", "gemini-flash")
-    if agent_name in ("quality_critic", "report_publisher", "gcp_advisory_critic", "gcp_advisory_publisher"):
+    if agent_name in (
+        "quality_critic",
+        "report_publisher",
+        "gcp_advisory_critic",
+        "gcp_advisory_publisher",
+        "warroom_critic",
+        "warroom_publisher",
+    ):
         return routing.get("critic", "gemini-flash")
     return routing.get("router", "gemini-flash")
 
@@ -451,6 +505,7 @@ def create_app(
     admin_emails: list[str] | None = None,
     allow_token_login: bool | None = None,
     google_verifier: Any | None = None,
+    baseline_provider: Any | None = None,
 ) -> FastAPI:
     """Builds the FastAPI application serving the Google-standard Web UI & PDF export API."""
     runtime = _AgentRuntime(session_service=session_service, runner=runner, app_name=app_name)
@@ -1039,6 +1094,142 @@ def create_app(
                 "X-Content-Type-Options": "nosniff",
             },
         )
+
+    # ----------------------------------------------------------------------------------
+    # Interactive What-If BCB Ranking Simulator (MCP baseline + <5ms deterministic math)
+    # ----------------------------------------------------------------------------------
+
+    _baseline_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+    _BASELINE_TTL_SECONDS = 300.0
+
+    async def _fetch_simulator_baseline(modalidade_credito: str = "CARTAO_ROTATIVO") -> dict[str, Any]:
+        from bacen_advisor.schemas import normalize_credit_modality
+
+        mod_norm = normalize_credit_modality(modalidade_credito) or "CARTAO_ROTATIVO"
+        cached = _baseline_cache.get(mod_norm)
+        now = time.monotonic()
+        if cached and now - cached[0] < _BASELINE_TTL_SECONDS:
+            return cached[1]
+
+        if baseline_provider is not None:
+            result = baseline_provider(mod_norm)
+            if asyncio.iscoroutine(result):
+                result = await result
+            _baseline_cache[mod_norm] = (now, result)
+            return result
+
+        from urllib.parse import urlparse
+
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamable_http_client
+
+        from bacen_advisor.config import is_managed_runtime
+        from bacen_advisor.tools.mcp_bacen import (
+            _OFFLINE_PLACEHOLDER_URL,
+            _IdTokenProvider,
+            _resolve_mcp_url,
+        )
+
+        try:
+            mcp_url = _resolve_mcp_url()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=503,
+                detail=f"Servidor MCP BCB indisponível para carregar baseline: {exc}",
+            ) from exc
+        if not mcp_url or mcp_url == _OFFLINE_PLACEHOLDER_URL:
+            raise HTTPException(
+                status_code=503,
+                detail="BACEN_MCP_URL não configurado neste ambiente.",
+            )
+
+        headers: dict[str, str] = {}
+        if is_managed_runtime() or mcp_url.startswith("https://"):
+            try:
+                parsed = urlparse(mcp_url)
+                audience = f"{parsed.scheme}://{parsed.netloc}"
+                token = await asyncio.to_thread(_IdTokenProvider(audience).get)
+                headers["Authorization"] = f"Bearer {token}"
+            except Exception as exc:  # noqa: BLE001
+                if is_managed_runtime():
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"Falha ao autenticar OIDC no MCP BCB: {exc}",
+                    ) from exc
+
+        try:
+            async with httpx.AsyncClient(headers=headers, timeout=25.0) as client:
+                async with streamable_http_client(mcp_url, http_client=client) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+                        tool_res = await session.call_tool(
+                            "comparar_instituicoes_financeiras",
+                            {"segmento": "TODOS", "modalidade_credito": mod_norm},
+                        )
+                        raw_txt = ""
+                        for part in getattr(tool_res, "content", None) or []:
+                            if getattr(part, "text", None):
+                                raw_txt += part.text
+                        parsed_payload = json.loads(raw_txt)
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=503,
+                detail=f"Não foi possível consultar o baseline BCB no MCP: {exc}",
+            ) from exc
+
+        meta = parsed_payload.get("metadados_fonte") or {}
+        payload_out = {
+            "modalidade_credito": mod_norm,
+            "periodo_referencia": meta.get("periodo_referencia") or "mais recente",
+            "origem_leitura": meta.get("origem_leitura") or "mcp_bacen",
+            "pilar": meta.get("pilar") or "Benchmark Consolidado 4 Pilares BCB & Open Finance",
+            "records": parsed_payload.get("registros") or [],
+            "weights_default": {
+                "reclamacoes": 0.30,
+                "taxas_credito": 0.25,
+                "pix_med": 0.25,
+                "prudencial": 0.20,
+            },
+        }
+        _baseline_cache[mod_norm] = (now, payload_out)
+        return payload_out
+
+    @api.get("/api/simulator/baseline")
+    async def simulator_baseline(modalidade: str = "CARTAO_ROTATIVO") -> dict[str, Any]:
+        try:
+            return await _fetch_simulator_baseline(modalidade)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @api.post("/api/simulator/what-if")
+    async def simulator_what_if(req: WhatIfSimulateRequest) -> dict[str, Any]:
+        from bacen_advisor.tools.simulation_tools import simulate_bcb_what_if_scenario
+
+        records = req.benchmark_records
+        baseline_meta: dict[str, Any] = {}
+        if not records:
+            baseline = await _fetch_simulator_baseline(req.modalidade_credito)
+            records = baseline.get("records") or []
+            baseline_meta = {
+                "periodo_referencia": baseline.get("periodo_referencia"),
+                "origem_leitura": baseline.get("origem_leitura"),
+                "modalidade_credito": baseline.get("modalidade_credito"),
+            }
+        result = simulate_bcb_what_if_scenario(
+            target_institution=req.target_institution,
+            benchmark_records=records,
+            overrides=req.overrides,
+            weights=req.weights,
+        )
+        if result.get("status") != "success":
+            raise HTTPException(
+                status_code=422,
+                detail=result.get("error_message") or "Erro ao simular cenário What-If.",
+            )
+        result["baseline_meta"] = baseline_meta
+        return result
 
     return api
 

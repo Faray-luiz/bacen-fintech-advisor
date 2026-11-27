@@ -7,7 +7,7 @@ import types as pytypes
 from pathlib import Path
 from types import SimpleNamespace
 
-from google.adk.agents import LlmAgent, SequentialAgent
+from google.adk.agents import LlmAgent, ParallelAgent, SequentialAgent
 from google.adk.events.event import Event
 from google.adk.sessions.session import Session
 from google.genai import types
@@ -35,7 +35,45 @@ def test_coordinator_routes_to_specialists():
         "quick_data_agent",
         "report_pipeline",
         "gcp_advisory_pipeline",
+        "boardroom_warroom_pipeline",
+        "boardroom_roleplay_agent",
     ]
+
+
+def test_boardroom_warroom_pipeline_uses_parallel_c_level_panel_and_critic():
+    pipeline = _by_name(root_agent, "boardroom_warroom_pipeline")
+    assert isinstance(pipeline, SequentialAgent)
+    assert [a.name for a in pipeline.sub_agents] == [
+        "warroom_data_prep",
+        "warroom_c_level_panel",
+        "warroom_pitch_coach",
+        "warroom_critic",
+        "warroom_publisher",
+    ]
+    panel = _by_name(root_agent, "warroom_c_level_panel")
+    assert isinstance(panel, ParallelAgent)
+    assert [a.name for a in panel.sub_agents] == [
+        "persona_cto",
+        "persona_cro",
+        "persona_cfo",
+    ]
+    coach = _by_name(root_agent, "warroom_pitch_coach")
+    critic = _by_name(root_agent, "warroom_critic")
+    assert "pro" in coach.model.model
+    assert "flash" in critic.model.model
+    assert critic.output_schema is CriticVerdict
+    coach_tools = {getattr(t, "name", "") for t in coach.tools}
+    assert {"diagnose_institution_gaps", "match_gcp_solutions_catalog"} <= coach_tools
+    assert "export_report_to_gcs" not in coach_tools
+
+
+def test_boardroom_roleplay_agent_wired_with_pro_and_no_export():
+    rp = _by_name(root_agent, "boardroom_roleplay_agent")
+    assert isinstance(rp, LlmAgent)
+    assert "pro" in rp.model.model
+    rp_tools = {getattr(t, "name", "") for t in rp.tools}
+    assert {"diagnose_institution_gaps", "match_gcp_solutions_catalog", "simulate_bcb_what_if_scenario"} <= rp_tools
+    assert "export_report_to_gcs" not in rp_tools
 
 
 def test_gcp_advisory_pipeline_is_sequential_with_pro_consultant_and_critic():

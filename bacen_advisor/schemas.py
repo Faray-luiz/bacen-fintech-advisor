@@ -629,6 +629,132 @@ class GcpSolutionMatchResult(BaseModel):
 
 
 # --------------------------------------------------------------------------------------
+# What-If BCB Ranking Simulator & Business Case schemas
+# --------------------------------------------------------------------------------------
+
+
+class WhatIfOverrides(BaseModel):
+    """Optional simulated BCB/Open Finance target metrics for one institution."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    indice_reclamacoes: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=200.0,
+        description="Simulated BCB/Deati complaints per 1M CCS customers (lower is better).",
+    )
+    taxa_juros_mensal_pct: float | None = Field(
+        default=None,
+        ge=0.5,
+        le=30.0,
+        description="Simulated monthly credit interest rate % a.m. (lower is more competitive).",
+    )
+    disponibilidade_spi_pct: float | None = Field(
+        default=None,
+        ge=95.0,
+        le=100.0,
+        description="Simulated Pix/SPI availability % (BCB regulatory floor >= 99.8%).",
+    )
+    med_por_100k: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=50.0,
+        description="Simulated Pix MED fraud claims per 100k transactions (lower is better).",
+    )
+    taxa_devolucao_med_pct: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=100.0,
+        description="Simulated Pix MED recovery/return rate % (higher is better).",
+    )
+    indice_basileia_pct: float | None = Field(
+        default=None,
+        ge=5.0,
+        le=40.0,
+        description="Simulated Basel III capital ratio % (regulatory floor 10.5%–11.5%).",
+    )
+    roe_anualizado_pct: float | None = Field(
+        default=None,
+        ge=-20.0,
+        le=60.0,
+        description="Simulated annualized ROE % (higher is stronger).",
+    )
+    inadimplencia_90d_pct: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=25.0,
+        description="Simulated 90-day delinquency rate % (lower is better).",
+    )
+    disponibilidade_open_finance_pct: float | None = Field(
+        default=None,
+        ge=95.0,
+        le=100.0,
+        description="Simulated Open Finance Phase 1 API availability % (floor >= 99.5%).",
+    )
+
+
+class WhatIfPillarDelta(BaseModel):
+    """Before/after normalized 0–10 score delta for one BCB pillar."""
+
+    pillar: Literal["reclamacoes", "taxas_credito", "pix_med", "prudencial"]
+    label: str
+    before_score: float = Field(ge=0, le=10)
+    after_score: float = Field(ge=0, le=10)
+    delta_score: float
+
+
+class WhatIfMetricChange(BaseModel):
+    """Single adjusted metric delta with directionality and regulatory status."""
+
+    metric: str
+    label: str
+    pillar: str
+    unit: str
+    direction: Literal["lower_is_better", "higher_is_better"]
+    before_value: float
+    after_value: float
+    delta_abs: float
+    delta_pct: float
+    improved: bool
+
+
+class WhatIfValueDriver(BaseModel):
+    """Transparent directional business-case driver linked to a simulated BCB gain."""
+
+    pillar: str
+    headline: str
+    mechanism: str
+    gcp_enablers: list[str] = Field(default_factory=list)
+    assumption_note: str
+
+
+class WhatIfSimulationResult(BaseModel):
+    """Output schema for ``simulate_bcb_what_if_scenario``."""
+
+    status: Literal["success", "error"]
+    target_institution: str | None = None
+    segment: str | None = None
+    position_before: int | None = None
+    position_after: int | None = None
+    positions_gained: int = 0
+    score_before_0_10: float | None = None
+    score_after_0_10: float | None = None
+    score_delta: float = 0.0
+    overtaken_competitors: list[str] = Field(default_factory=list)
+    pillar_deltas: list[WhatIfPillarDelta] = Field(default_factory=list)
+    metric_changes: list[WhatIfMetricChange] = Field(default_factory=list)
+    ranking_before: list[RankedInstitution] = Field(default_factory=list)
+    ranking_after: list[RankedInstitution] = Field(default_factory=list)
+    regulatory_alerts: list[str] = Field(default_factory=list)
+    recommended_gcp_blueprints: list[dict] = Field(default_factory=list)
+    business_value_drivers: list[WhatIfValueDriver] = Field(default_factory=list)
+    weights_normalized: dict[str, float] = Field(default_factory=dict)
+    error_message: str | None = None
+    recovery_hint: str | None = None
+
+
+# --------------------------------------------------------------------------------------
 # Agent output schemas
 # --------------------------------------------------------------------------------------
 
@@ -723,5 +849,22 @@ TOOL_JSON_SCHEMAS: dict[str, dict[str, dict]] = {
             "additionalProperties": False,
         },
         "output": GcpSolutionMatchResult.model_json_schema(),
+    },
+    "simulate_bcb_what_if_scenario": {
+        "input": {
+            "type": "object",
+            "properties": {
+                "target_institution": {"type": "string"},
+                "benchmark_records": {
+                    "type": "array",
+                    "items": InstitutionBenchmarkSnapshot.model_json_schema(),
+                },
+                "overrides": WhatIfOverrides.model_json_schema(),
+                "weights": BenchmarkWeights.model_json_schema(),
+            },
+            "required": ["target_institution", "benchmark_records", "overrides"],
+            "additionalProperties": False,
+        },
+        "output": WhatIfSimulationResult.model_json_schema(),
     },
 }

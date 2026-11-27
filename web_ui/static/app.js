@@ -63,6 +63,33 @@
     sidebarModelsText: document.getElementById("sidebarModelsText"),
     toggleInspectorBtn: document.getElementById("toggleInspectorBtn"),
     closeInspectorBtn: document.getElementById("closeInspectorBtn"),
+    openWhatIfBtn: document.getElementById("openWhatIfBtn"),
+    whatIfModalBackdrop: document.getElementById("whatIfModalBackdrop"),
+    closeWhatIfModalBtn: document.getElementById("closeWhatIfModalBtn"),
+    cancelWhatIfBtn: document.getElementById("cancelWhatIfBtn"),
+    whatIfBankSelect: document.getElementById("whatIfBankSelect"),
+    whatIfBaselineMeta: document.getElementById("whatIfBaselineMeta"),
+    whatIfSlidersHost: document.getElementById("whatIfSlidersHost"),
+    whatIfPosDisplay: document.getElementById("whatIfPosDisplay"),
+    whatIfPosDelta: document.getElementById("whatIfPosDelta"),
+    whatIfScoreDisplay: document.getElementById("whatIfScoreDisplay"),
+    whatIfScoreDelta: document.getElementById("whatIfScoreDelta"),
+    whatIfOvertakenBox: document.getElementById("whatIfOvertakenBox"),
+    whatIfAlertsBox: document.getElementById("whatIfAlertsBox"),
+    whatIfLeaderboard: document.getElementById("whatIfLeaderboard"),
+    whatIfBlueprints: document.getElementById("whatIfBlueprints"),
+    launchWhatIfBusinessCaseBtn: document.getElementById("launchWhatIfBusinessCaseBtn"),
+    openWarRoomBtn: document.getElementById("openWarRoomBtn"),
+    warRoomModalBackdrop: document.getElementById("warRoomModalBackdrop"),
+    closeWarRoomModalBtn: document.getElementById("closeWarRoomModalBtn"),
+    cancelWarRoomBtn: document.getElementById("cancelWarRoomBtn"),
+    warRoomBankSelect: document.getElementById("warRoomBankSelect"),
+    warRoomTopicSelect: document.getElementById("warRoomTopicSelect"),
+    warRoomModeGrid: document.getElementById("warRoomModeGrid"),
+    warRoomPersonaBox: document.getElementById("warRoomPersonaBox"),
+    warRoomPersonaChips: document.getElementById("warRoomPersonaChips"),
+    launchWarRoomBtn: document.getElementById("launchWarRoomBtn"),
+    launchWarRoomBtnLabel: document.getElementById("launchWarRoomBtnLabel"),
     inspectorBody: document.getElementById("inspectorBody"),
     inspectorSubtitle: document.getElementById("inspectorSubtitle"),
     chatScroll: document.getElementById("chatScroll"),
@@ -123,6 +150,16 @@
       gcp_cloud_consultant: "Consultor Google Cloud (Pro)",
       gcp_advisory_critic: "Quality Critic GCP",
       gcp_advisory_publisher: "Publicação Plano GCP",
+      boardroom_warroom_pipeline: "Boardroom War Room",
+      warroom_data_prep: "Dados BCB (War Room)",
+      warroom_c_level_panel: "Comitê C-Level (Paralelo)",
+      persona_cto: "Persona CTO",
+      persona_cro: "Persona CRO / Compliance",
+      persona_cfo: "Persona CFO",
+      warroom_pitch_coach: "Pitch Coach GCP (Pro)",
+      warroom_critic: "Quality Critic War Room",
+      warroom_publisher: "Publicação Dossiê War Room",
+      boardroom_roleplay_agent: "Roleplay Executivo 1:1 (Pro)",
     };
     return map[name] || name;
   }
@@ -812,6 +849,14 @@
             <span class="material-symbols-outlined">cloud_done</span>
             <span>Plano Google Cloud</span>
           </button>
+          <button class="btn-whatif-action" type="button" data-action="open-whatif" title="Abrir simulador interativo What-If de ranking BCB">
+            <span class="material-symbols-outlined">tune</span>
+            <span>Simular What-If</span>
+          </button>
+          <button class="btn-warroom-action" type="button" data-action="open-warroom" title="Abrir Boardroom War Room C-Level (CTO · CRO · CFO)">
+            <span class="material-symbols-outlined">groups</span>
+            <span>War Room C-Level</span>
+          </button>
           <button class="btn-secondary" type="button" data-action="copy-md">
             <span class="material-symbols-outlined">content_copy</span>
             <span>Copiar</span>
@@ -847,6 +892,19 @@
     gcpBtn.addEventListener("click", () => {
       bankPicker.classList.toggle("open");
     });
+
+    const detectedBanks = orderBanksForText(`${turn.user_message || ""} ${turn.assistant_text || ""}`);
+    const preferredBankCode = detectedBanks.length && detectedBanks[0].detected ? detectedBanks[0].code : "BRADESCO";
+
+    const whatIfCardBtn = card.querySelector('[data-action="open-whatif"]');
+    if (whatIfCardBtn) {
+      whatIfCardBtn.addEventListener("click", () => openWhatIfModal(preferredBankCode));
+    }
+
+    const warRoomCardBtn = card.querySelector('[data-action="open-warroom"]');
+    if (warRoomCardBtn) {
+      warRoomCardBtn.addEventListener("click", () => openWarRoomModal(preferredBankCode));
+    }
     bankPicker.querySelectorAll(".bank-chip").forEach((chip) => {
       chip.addEventListener("click", () => {
         const bankLabel = chip.getAttribute("data-bank-label");
@@ -1188,6 +1246,15 @@
 
     dom.starterGrid.querySelectorAll(".starter-card").forEach((card) => {
       card.addEventListener("click", () => {
+        const modalType = card.getAttribute("data-open-modal");
+        if (modalType === "whatif") {
+          openWhatIfModal("BRADESCO");
+          return;
+        }
+        if (modalType === "warroom") {
+          openWarRoomModal("BRADESCO");
+          return;
+        }
         const prompt = card.getAttribute("data-prompt");
         if (prompt) sendPrompt(prompt);
       });
@@ -1269,8 +1336,10 @@
       if (e.target === dom.adminModalBackdrop) closeAdminModal();
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !dom.adminModalBackdrop.classList.contains("hidden")) {
-        closeAdminModal();
+      if (e.key === "Escape") {
+        if (!dom.adminModalBackdrop.classList.contains("hidden")) closeAdminModal();
+        if (!dom.whatIfModalBackdrop.classList.contains("hidden")) closeWhatIfModal();
+        if (!dom.warRoomModalBackdrop.classList.contains("hidden")) closeWarRoomModal();
       }
     });
     dom.adminAddForm.addEventListener("submit", (e) => {
@@ -1278,6 +1347,525 @@
       const val = dom.adminEntryInput.value.trim();
       if (val) addAllowlistEntry(val);
     });
+
+    // What-If Simulator modal bindings
+    dom.openWhatIfBtn.addEventListener("click", () => openWhatIfModal());
+    dom.closeWhatIfModalBtn.addEventListener("click", closeWhatIfModal);
+    dom.cancelWhatIfBtn.addEventListener("click", closeWhatIfModal);
+    dom.whatIfModalBackdrop.addEventListener("click", (e) => {
+      if (e.target === dom.whatIfModalBackdrop) closeWhatIfModal();
+    });
+    dom.whatIfBankSelect.addEventListener("change", () => {
+      whatIfState.targetInstitution = dom.whatIfBankSelect.value;
+      resetWhatIfOverrides();
+    });
+    dom.whatIfModalBackdrop.querySelectorAll("[data-preset]").forEach((btn) => {
+      btn.addEventListener("click", () => applyWhatIfPreset(btn.getAttribute("data-preset")));
+    });
+    dom.launchWhatIfBusinessCaseBtn.addEventListener("click", launchWhatIfBusinessCase);
+
+    // Boardroom War Room modal bindings
+    dom.openWarRoomBtn.addEventListener("click", () => openWarRoomModal());
+    dom.closeWarRoomModalBtn.addEventListener("click", closeWarRoomModal);
+    dom.cancelWarRoomBtn.addEventListener("click", closeWarRoomModal);
+    dom.warRoomModalBackdrop.addEventListener("click", (e) => {
+      if (e.target === dom.warRoomModalBackdrop) closeWarRoomModal();
+    });
+    dom.warRoomModeGrid.querySelectorAll(".warroom-mode-card").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        warRoomState.mode = btn.getAttribute("data-mode") || "panel";
+        syncWarRoomModeUI();
+      });
+    });
+    dom.warRoomPersonaChips.querySelectorAll(".persona-chip").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        warRoomState.persona = btn.getAttribute("data-persona") || "CTO (Chief Technology Officer)";
+        dom.warRoomPersonaChips.querySelectorAll(".persona-chip").forEach((c) => {
+          c.classList.toggle("selected", c === btn);
+        });
+      });
+    });
+    dom.launchWarRoomBtn.addEventListener("click", launchWarRoom);
+  }
+
+  // ------------------------------------------------------------------------
+  // Feature 1: Interactive What-If BCB Ranking Simulator & Business Case
+  // ------------------------------------------------------------------------
+
+  const WHATIF_SLIDER_GROUPS = [
+    {
+      pillarKey: "reclamacoes",
+      title: "Pilar 1 · Reclamações BCB (Deati)",
+      sliders: [
+        {
+          field: "indice_reclamacoes",
+          label: "Índice Reclamações (/1M clientes)",
+          min: 5.0,
+          max: 65.0,
+          step: 0.5,
+          decimals: 1,
+          unit: "",
+          direction: "lower_is_better",
+          floorHint: "↓ Menor é melhor",
+        },
+      ],
+    },
+    {
+      pillarKey: "taxas_credito",
+      title: "Pilar 2 · Taxas de Crédito (Olinda)",
+      sliders: [
+        {
+          field: "taxa_juros_mensal_pct",
+          label: "Taxa Cartão Rotativo (% a.m.)",
+          min: 6.0,
+          max: 18.0,
+          step: 0.1,
+          decimals: 2,
+          unit: "%",
+          direction: "lower_is_better",
+          floorHint: "↓ Mais competitiva",
+        },
+      ],
+    },
+    {
+      pillarKey: "pix_med",
+      title: "Pilar 3 · Pix, SPI & Fraudes MED",
+      sliders: [
+        {
+          field: "disponibilidade_spi_pct",
+          label: "Disponibilidade SPI (%)",
+          min: 99.60,
+          max: 100.0,
+          step: 0.01,
+          decimals: 2,
+          unit: "%",
+          direction: "higher_is_better",
+          floorHint: "Piso BCB ≥ 99,80%",
+        },
+        {
+          field: "med_por_100k",
+          label: "Fraudes MED (/100k tx Pix)",
+          min: 1.5,
+          max: 12.0,
+          step: 0.1,
+          decimals: 1,
+          unit: "",
+          direction: "lower_is_better",
+          floorHint: "↓ Menor fraude",
+        },
+        {
+          field: "taxa_devolucao_med_pct",
+          label: "Taxa de Devolução MED (%)",
+          min: 12.0,
+          max: 50.0,
+          step: 0.5,
+          decimals: 1,
+          unit: "%",
+          direction: "higher_is_better",
+          floorHint: "↑ Maior recuperação",
+        },
+      ],
+    },
+    {
+      pillarKey: "prudencial",
+      title: "Pilar 4 · Prudencial (IF.data) & Open Finance",
+      sliders: [
+        {
+          field: "roe_anualizado_pct",
+          label: "ROE Anualizado (%)",
+          min: 6.0,
+          max: 35.0,
+          step: 0.5,
+          decimals: 1,
+          unit: "%",
+          direction: "higher_is_better",
+          floorHint: "↑ Maior rentabilidade",
+        },
+        {
+          field: "inadimplencia_90d_pct",
+          label: "Inadimplência > 90d (%)",
+          min: 1.0,
+          max: 8.5,
+          step: 0.1,
+          decimals: 1,
+          unit: "%",
+          direction: "lower_is_better",
+          floorHint: "↓ Carteira mais saudável",
+        },
+        {
+          field: "disponibilidade_open_finance_pct",
+          label: "Disponibilidade Open Finance (%)",
+          min: 99.20,
+          max: 100.0,
+          step: 0.01,
+          decimals: 2,
+          unit: "%",
+          direction: "higher_is_better",
+          floorHint: "Piso BCB ≥ 99,50%",
+        },
+      ],
+    },
+  ];
+
+  const whatIfState = {
+    baseline: null,
+    targetInstitution: "BRADESCO",
+    overrides: {},
+    lastResult: null,
+    debounceTimer: null,
+  };
+
+  function bankLabelFromCode(code) {
+    const found = SUPPORTED_BANKS.find((b) => b.code === code);
+    return found ? found.label : code;
+  }
+
+  function populateBankSelect(selectEl, preferredCode) {
+    selectEl.innerHTML = SUPPORTED_BANKS.map(
+      (b) => `<option value="${escapeHtml(b.code)}">${escapeHtml(b.label)}</option>`
+    ).join("");
+    if (preferredCode && SUPPORTED_BANKS.some((b) => b.code === preferredCode)) {
+      selectEl.value = preferredCode;
+    }
+  }
+
+  function getTargetBaselineRecord() {
+    if (!whatIfState.baseline || !Array.isArray(whatIfState.baseline.records)) return null;
+    return (
+      whatIfState.baseline.records.find((r) => r.instituicao === whatIfState.targetInstitution) ||
+      whatIfState.baseline.records[0] ||
+      null
+    );
+  }
+
+  async function openWhatIfModal(preferredBankCode) {
+    dom.whatIfModalBackdrop.classList.remove("hidden");
+    const bankCode = preferredBankCode || whatIfState.targetInstitution || "BRADESCO";
+    whatIfState.targetInstitution = bankCode;
+    populateBankSelect(dom.whatIfBankSelect, bankCode);
+
+    if (!whatIfState.baseline) {
+      dom.whatIfBaselineMeta.textContent = "Carregando baseline oficial dos 4 pilares no MCP BCB...";
+      dom.whatIfSlidersHost.innerHTML = `<p class="whatif-empty-hint" style="padding:18px">Consultando séries oficiais do Banco Central...</p>`;
+      try {
+        const resp = await fetch("/api/simulator/baseline?modalidade=CARTAO_ROTATIVO");
+        if (resp.status === 401) {
+          closeWhatIfModal();
+          showAuthOverlay("Sessão expirada. Faça login novamente.");
+          return;
+        }
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || "Falha ao carregar baseline BCB.");
+        }
+        whatIfState.baseline = await resp.json();
+      } catch (err) {
+        dom.whatIfBaselineMeta.textContent = err.message || "Não foi possível carregar o baseline BCB.";
+        dom.whatIfSlidersHost.innerHTML = `<div class="whatif-alerts">${escapeHtml(err.message || "Erro ao consultar MCP BCB.")}</div>`;
+        return;
+      }
+    }
+
+    const meta = whatIfState.baseline;
+    dom.whatIfBaselineMeta.textContent = `Baseline oficial BCB (${meta.periodo_referencia || "atual"} · ${meta.records.length} instituições · ${meta.modalidade_credito || "CARTAO_ROTATIVO"})`;
+    resetWhatIfOverrides();
+  }
+
+  function closeWhatIfModal() {
+    dom.whatIfModalBackdrop.classList.add("hidden");
+  }
+
+  function resetWhatIfOverrides() {
+    whatIfState.overrides = {};
+    renderWhatIfSliders();
+    runWhatIfSimulationNow();
+  }
+
+  function applyWhatIfPreset(presetName) {
+    const rec = getTargetBaselineRecord();
+    if (!rec) return;
+    if (presetName === "reset") {
+      resetWhatIfOverrides();
+      return;
+    }
+    const clampVal = (v, min, max, dec) => Number(Math.max(min, Math.min(max, v)).toFixed(dec));
+    const ov = {};
+    if (presetName === "top2") {
+      if (rec.indice_reclamacoes != null) ov.indice_reclamacoes = clampVal(rec.indice_reclamacoes * 0.62, 5, 65, 1);
+      if (rec.taxa_juros_mensal_pct != null) ov.taxa_juros_mensal_pct = clampVal(rec.taxa_juros_mensal_pct - 1.6, 6, 18, 2);
+      if (rec.disponibilidade_spi_pct != null) ov.disponibilidade_spi_pct = clampVal(Math.max(rec.disponibilidade_spi_pct, 99.96), 99.6, 100, 2);
+      if (rec.med_por_100k != null) ov.med_por_100k = clampVal(rec.med_por_100k * 0.72, 1.5, 12, 1);
+      if (rec.taxa_devolucao_med_pct != null) ov.taxa_devolucao_med_pct = clampVal(rec.taxa_devolucao_med_pct * 1.35, 12, 50, 1);
+      if (rec.roe_anualizado_pct != null) ov.roe_anualizado_pct = clampVal(rec.roe_anualizado_pct + 4.0, 6, 35, 1);
+      if (rec.inadimplencia_90d_pct != null) ov.inadimplencia_90d_pct = clampVal(rec.inadimplencia_90d_pct * 0.78, 1, 8.5, 1);
+    } else if (presetName === "pix_shock") {
+      ov.disponibilidade_spi_pct = 99.98;
+      if (rec.med_por_100k != null) ov.med_por_100k = clampVal(rec.med_por_100k * 0.60, 1.5, 12, 1);
+      if (rec.taxa_devolucao_med_pct != null) ov.taxa_devolucao_med_pct = clampVal(rec.taxa_devolucao_med_pct * 1.45, 12, 50, 1);
+      if (rec.indice_reclamacoes != null) ov.indice_reclamacoes = clampVal(rec.indice_reclamacoes * 0.82, 5, 65, 1);
+    } else if (presetName === "cx_credit") {
+      if (rec.indice_reclamacoes != null) ov.indice_reclamacoes = clampVal(rec.indice_reclamacoes * 0.60, 5, 65, 1);
+      if (rec.taxa_juros_mensal_pct != null) ov.taxa_juros_mensal_pct = clampVal(rec.taxa_juros_mensal_pct - 2.0, 6, 18, 2);
+      if (rec.inadimplencia_90d_pct != null) ov.inadimplencia_90d_pct = clampVal(rec.inadimplencia_90d_pct * 0.75, 1, 8.5, 1);
+      if (rec.roe_anualizado_pct != null) ov.roe_anualizado_pct = clampVal(rec.roe_anualizado_pct + 2.5, 6, 35, 1);
+    }
+    whatIfState.overrides = ov;
+    renderWhatIfSliders();
+    runWhatIfSimulationNow();
+  }
+
+  function renderWhatIfSliders() {
+    const rec = getTargetBaselineRecord();
+    if (!rec) return;
+
+    dom.whatIfSlidersHost.innerHTML = WHATIF_SLIDER_GROUPS.map((grp) => {
+      const itemsHtml = grp.sliders
+        .map((s) => {
+          const baseVal = Number(rec[s.field] ?? s.min);
+          const curVal =
+            whatIfState.overrides[s.field] != null ? Number(whatIfState.overrides[s.field]) : baseVal;
+          const diff = curVal - baseVal;
+          const changed = Math.abs(diff) > 1e-4;
+          const improved = s.direction === "lower_is_better" ? diff < 0 : diff > 0;
+          const deltaHtml = changed
+            ? `<span class="slider-delta ${improved ? "improved" : "worsened"}">${diff > 0 ? "+" : ""}${diff.toFixed(s.decimals)}${s.unit}</span>`
+            : "";
+
+          return `
+            <div class="slider-item" data-field="${s.field}">
+              <div class="slider-row-top">
+                <span class="slider-label">${escapeHtml(s.label)} <span class="slider-floor-tag">(${escapeHtml(s.floorHint)})</span></span>
+                <span class="slider-val-group">
+                  <span class="slider-before">${baseVal.toFixed(s.decimals)}${s.unit}</span>
+                  <span>→</span>
+                  <span class="slider-after" data-role="val-${s.field}">${curVal.toFixed(s.decimals)}${s.unit}</span>
+                  <span data-role="delta-${s.field}">${deltaHtml}</span>
+                </span>
+              </div>
+              <input
+                type="range"
+                class="m3-range"
+                data-slider-field="${s.field}"
+                min="${s.min}"
+                max="${s.max}"
+                step="${s.step}"
+                value="${curVal}"
+              />
+            </div>`;
+        })
+        .join("");
+
+      return `
+        <div class="slider-pillar-group">
+          <div class="slider-pillar-head">
+            <span class="slider-pillar-title">${escapeHtml(grp.title)}</span>
+            <span class="slider-pillar-score" data-pillar-score="${grp.pillarKey}">—</span>
+          </div>
+          ${itemsHtml}
+        </div>`;
+    }).join("");
+
+    dom.whatIfSlidersHost.querySelectorAll("[data-slider-field]").forEach((input) => {
+      input.addEventListener("input", () => {
+        const field = input.getAttribute("data-slider-field");
+        const meta = WHATIF_SLIDER_GROUPS.flatMap((g) => g.sliders).find((s) => s.field === field);
+        if (!meta) return;
+        const baseVal = Number(rec[field] ?? meta.min);
+        const val = Number(input.value);
+        if (Math.abs(val - baseVal) < 1e-4) {
+          delete whatIfState.overrides[field];
+        } else {
+          whatIfState.overrides[field] = val;
+        }
+        const valEl = dom.whatIfSlidersHost.querySelector(`[data-role="val-${field}"]`);
+        const deltaEl = dom.whatIfSlidersHost.querySelector(`[data-role="delta-${field}"]`);
+        if (valEl) valEl.textContent = `${val.toFixed(meta.decimals)}${meta.unit}`;
+        if (deltaEl) {
+          const diff = val - baseVal;
+          if (Math.abs(diff) > 1e-4) {
+            const improved = meta.direction === "lower_is_better" ? diff < 0 : diff > 0;
+            deltaEl.innerHTML = `<span class="slider-delta ${improved ? "improved" : "worsened"}">${diff > 0 ? "+" : ""}${diff.toFixed(meta.decimals)}${meta.unit}</span>`;
+          } else {
+            deltaEl.innerHTML = "";
+          }
+        }
+        scheduleWhatIfSimulation();
+      });
+    });
+  }
+
+  function scheduleWhatIfSimulation() {
+    if (whatIfState.debounceTimer) clearTimeout(whatIfState.debounceTimer);
+    whatIfState.debounceTimer = setTimeout(runWhatIfSimulationNow, 40);
+  }
+
+  async function runWhatIfSimulationNow() {
+    if (!whatIfState.baseline || !whatIfState.baseline.records) return;
+    try {
+      const resp = await fetch("/api/simulator/what-if", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_institution: whatIfState.targetInstitution,
+          overrides: whatIfState.overrides,
+          benchmark_records: whatIfState.baseline.records,
+        }),
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      whatIfState.lastResult = data;
+      renderWhatIfResults(data);
+    } catch (_err) {
+      // Transient UI debounce error ignored gracefully.
+    }
+  }
+
+  function renderWhatIfResults(res) {
+    // 1. Hero Position & Score Banner
+    dom.whatIfPosDisplay.textContent = `#${res.position_before} → #${res.position_after}`;
+    const posGain = Number(res.positions_gained || 0);
+    dom.whatIfPosDelta.textContent =
+      posGain > 0 ? `+${posGain} pos.` : posGain < 0 ? `${posGain} pos.` : "sem mudança";
+    dom.whatIfPosDelta.className = `kpi-delta-pill ${posGain > 0 ? "positive" : posGain < 0 ? "negative" : "neutral"}`;
+
+    dom.whatIfScoreDisplay.textContent = `${Number(res.score_before_0_10).toFixed(2)} → ${Number(res.score_after_0_10).toFixed(2)}`;
+    const sDelta = Number(res.score_delta || 0);
+    dom.whatIfScoreDelta.textContent = `${sDelta > 0 ? "+" : ""}${sDelta.toFixed(2)} pts`;
+    dom.whatIfScoreDelta.className = `kpi-delta-pill ${sDelta > 0 ? "positive" : sDelta < 0 ? "negative" : "neutral"}`;
+
+    // 2. Pillar score badges inside slider groups
+    (res.pillar_deltas || []).forEach((pd) => {
+      const el = dom.whatIfSlidersHost.querySelector(`[data-pillar-score="${pd.pillar}"]`);
+      if (!el) return;
+      const d = Number(pd.delta_score || 0);
+      el.textContent = `${pd.before_score.toFixed(2)} → ${pd.after_score.toFixed(2)}${Math.abs(d) > 0.005 ? ` (${d > 0 ? "+" : ""}${d.toFixed(2)})` : ""}`;
+      el.className = `slider-pillar-score ${d > 0.005 ? "up" : d < -0.005 ? "down" : ""}`;
+    });
+
+    // 3. Overtaken rivals
+    if (res.overtaken_competitors && res.overtaken_competitors.length) {
+      const labels = res.overtaken_competitors.map(bankLabelFromCode).join(", ");
+      dom.whatIfOvertakenBox.innerHTML = `<span class="material-symbols-outlined">emoji_events</span><span>Ultrapassa no ranking BCB: <strong>${escapeHtml(labels)}</strong></span>`;
+      dom.whatIfOvertakenBox.classList.remove("hidden");
+    } else {
+      dom.whatIfOvertakenBox.classList.add("hidden");
+    }
+
+    // 4. Regulatory floor alerts
+    if (res.regulatory_alerts && res.regulatory_alerts.length) {
+      dom.whatIfAlertsBox.innerHTML = res.regulatory_alerts.map((a) => `<div>⚠️ ${escapeHtml(a)}</div>`).join("");
+      dom.whatIfAlertsBox.classList.remove("hidden");
+    } else {
+      dom.whatIfAlertsBox.classList.add("hidden");
+    }
+
+    // 5. Live 10-bank leaderboard
+    dom.whatIfLeaderboard.innerHTML = (res.ranking_after || [])
+      .map((row) => {
+        const isTarget = row.instituicao === res.target_institution;
+        const pct = Math.max(8, Math.min(100, (Number(row.weighted_score_0_10) / 10.0) * 100));
+        return `
+          <div class="lb-row${isTarget ? " target" : ""}">
+            <span class="lb-pos">#${row.position}</span>
+            <span>${escapeHtml(bankLabelFromCode(row.instituicao))}</span>
+            <div class="lb-bar-track"><div class="lb-bar-fill" style="width:${pct.toFixed(1)}%"></div></div>
+            <span class="lb-score">${Number(row.weighted_score_0_10).toFixed(2)}</span>
+          </div>`;
+      })
+      .join("");
+
+    // 6. Auto-matched Google Cloud FSI blueprints
+    const bps = res.recommended_gcp_blueprints || [];
+    if (!bps.length) {
+      dom.whatIfBlueprints.innerHTML = `<p class="whatif-empty-hint">Mova qualquer slider à esquerda (ou clique em um cenário pronto acima) para mapear automaticamente os blueprints Google Cloud habilitadores.</p>`;
+    } else {
+      dom.whatIfBlueprints.innerHTML = bps
+        .map(
+          (bp) => `
+          <div class="bp-mini-card">
+            <div class="bp-mini-top">
+              <span class="bp-mini-title">${escapeHtml(bp.title)}</span>
+              <span class="bp-mini-horizon">${escapeHtml(bp.horizon)}</span>
+            </div>
+            <div class="bp-mini-services">${escapeHtml((bp.gcp_services || []).join(" · "))}</div>
+          </div>`
+        )
+        .join("");
+    }
+  }
+
+  function launchWhatIfBusinessCase() {
+    const res = whatIfState.lastResult;
+    const bankLabel = bankLabelFromCode(whatIfState.targetInstitution);
+    const changes = (res && res.metric_changes) || [];
+    closeWhatIfModal();
+    if (state.isStreaming) return;
+
+    if (!changes.length) {
+      sendPrompt(
+        `Com base nos dados do Banco Central, atue como consultor sênior de Google Cloud e gere um plano de oportunidades, arquiteturas de referência e business case direcional para o ${bankLabel}.`
+      );
+      return;
+    }
+
+    const changeLines = changes
+      .map((c) => `${c.label}: ${c.before_value}${c.unit} → ${c.after_value}${c.unit} (${c.delta_pct > 0 ? "+" : ""}${c.delta_pct}%)`)
+      .join("; ");
+    const overtakenText =
+      res.overtaken_competitors && res.overtaken_competitors.length
+        ? ` ultrapassando ${res.overtaken_competitors.map(bankLabelFromCode).join(", ")}`
+        : "";
+    sendPrompt(
+      `Atue como consultor sênior de Google Cloud e gere um Business Case executivo e plano de arquiteturas Google Cloud para o ${bankLabel} com base nesta simulação What-If validada nos 4 pilares do BCB (ranking #${res.position_before} → #${res.position_after}${overtakenText}, score ${res.score_before_0_10} → ${res.score_after_0_10}): ${changeLines}. Use simulate_bcb_what_if_scenario e o catálogo oficial Google Cloud FSI para detalhar as alavancas direcionais, arquiteturas, compliance Brasil e perguntas de discovery sem fabricar percentuais de ROI.`
+    );
+  }
+
+  // ------------------------------------------------------------------------
+  // Feature 2: Boardroom War Room (CTO · CRO · CFO ParallelAgent & Roleplay)
+  // ------------------------------------------------------------------------
+
+  const warRoomState = {
+    mode: "panel",
+    persona: "CTO (Chief Technology Officer)",
+  };
+
+  function openWarRoomModal(preferredBankCode) {
+    populateBankSelect(dom.warRoomBankSelect, preferredBankCode || "BRADESCO");
+    syncWarRoomModeUI();
+    dom.warRoomModalBackdrop.classList.remove("hidden");
+  }
+
+  function closeWarRoomModal() {
+    dom.warRoomModalBackdrop.classList.add("hidden");
+  }
+
+  function syncWarRoomModeUI() {
+    const isRoleplay = warRoomState.mode === "roleplay";
+    dom.warRoomModeGrid.querySelectorAll(".warroom-mode-card").forEach((c) => {
+      c.classList.toggle("selected", c.getAttribute("data-mode") === warRoomState.mode);
+    });
+    dom.warRoomPersonaBox.classList.toggle("hidden", !isRoleplay);
+    dom.launchWarRoomBtnLabel.textContent = isRoleplay
+      ? "Iniciar Roleplay Executivo 1:1"
+      : "Gerar Dossiê War Room (CTO · CRO · CFO)";
+  }
+
+  function launchWarRoom() {
+    const bankCode = dom.warRoomBankSelect.value || "BRADESCO";
+    const bankLabel = bankLabelFromCode(bankCode);
+    const topic = dom.warRoomTopicSelect.value || "estratégia geral nos 4 pilares do Banco Central";
+    closeWarRoomModal();
+    if (state.isStreaming) return;
+
+    if (warRoomState.mode === "roleplay") {
+      sendPrompt(
+        `Inicie um roleplay executivo 1:1 assumindo o papel de ${warRoomState.persona} do ${bankLabel} com foco em ${topic}. Use os dados oficiais do Banco Central do ${bankLabel} para disparar a primeira objeção realista de sala de diretoria contra uma proposta Google Cloud e aguarde minha resposta para dar nota no Scorecard do Pitch.`
+      );
+    } else {
+      sendPrompt(
+        `Abra um Boardroom War Room de diretoria (CTO, CRO/Compliance e CFO) para o ${bankLabel} com foco em ${topic}. Simule as objeções mais duras desses três executivos ancoradas nos dados reais do Banco Central e entregue a matriz de contra-argumentos prontos, battlecard Google Cloud e roteiro Quick Win de 0–90 dias.`
+      );
+    }
   }
 
   // ------------------------------------------------------------------------

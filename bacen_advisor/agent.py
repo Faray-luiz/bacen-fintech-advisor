@@ -22,6 +22,8 @@ from .observability import configure_logging, configure_tracing
 from .plugins import GuardrailsPlugin, ObservabilityPlugin, ToolGuardPlugin
 from .prompts import CONSTITUTION, COORDINATOR_INSTRUCTION
 from .sub_agents import (
+    build_boardroom_roleplay_agent,
+    build_boardroom_warroom_pipeline,
     build_gcp_advisory_pipeline,
     build_knowledge_agent,
     build_quick_data_agent,
@@ -46,6 +48,8 @@ root_agent = LlmAgent(
         build_quick_data_agent(),
         build_report_pipeline(),
         build_gcp_advisory_pipeline(),
+        build_boardroom_warroom_pipeline(),
+        build_boardroom_roleplay_agent(),
     ],
     generate_content_config=types.GenerateContentConfig(temperature=0.1),
 )

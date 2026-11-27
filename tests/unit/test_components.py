@@ -79,6 +79,7 @@ def test_all_tools_export_explicit_json_schemas():
         "export_report_to_gcs",
         "diagnose_institution_gaps",
         "match_gcp_solutions_catalog",
+        "simulate_bcb_what_if_scenario",
     }
     assert set(MCP_ARG_SCHEMAS) == set(ALL_BACEN_TOOLS)
     assert set(TOOL_JSON_SCHEMAS) == expected

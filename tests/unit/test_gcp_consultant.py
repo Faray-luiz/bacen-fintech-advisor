@@ -105,10 +105,11 @@ def test_gcp_fsi_catalog_is_valid_unique_and_complete():
         )
 
 
-def test_tool_json_schemas_include_all_12_tools():
+def test_tool_json_schemas_include_all_13_tools():
     assert "diagnose_institution_gaps" in TOOL_JSON_SCHEMAS
     assert "match_gcp_solutions_catalog" in TOOL_JSON_SCHEMAS
-    assert len(TOOL_JSON_SCHEMAS) == 12
+    assert "simulate_bcb_what_if_scenario" in TOOL_JSON_SCHEMAS
+    assert len(TOOL_JSON_SCHEMAS) == 13
 
 
 def test_diagnose_institution_gaps_detects_critical_regulatory_and_peer_gaps():

@@ -17,7 +17,7 @@ disables transfer back to parent/peers so agent routing loops are structurally i
 
 from __future__ import annotations
 
-from google.adk.agents import LlmAgent, SequentialAgent
+from google.adk.agents import LlmAgent, ParallelAgent, SequentialAgent
 from google.adk.tools import VertexAiSearchTool
 from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 from google.genai import types
@@ -25,6 +25,7 @@ from google.genai import types
 from .config import build_model, get_settings
 from .prompts import (
     ANALYST_INSTRUCTION,
+    BOARDROOM_ROLEPLAY_INSTRUCTION,
     COLLECTOR_INSTRUCTION,
     CONSTITUTION,
     CRITIC_INSTRUCTION,
@@ -35,6 +36,13 @@ from .prompts import (
     KNOWLEDGE_INSTRUCTION,
     PUBLISHER_INSTRUCTION,
     QUICK_DATA_INSTRUCTION,
+    WARROOM_CFO_INSTRUCTION,
+    WARROOM_COACH_INSTRUCTION,
+    WARROOM_CRITIC_INSTRUCTION,
+    WARROOM_CRO_INSTRUCTION,
+    WARROOM_CTO_INSTRUCTION,
+    WARROOM_DATA_PREP_INSTRUCTION,
+    WARROOM_PUBLISHER_INSTRUCTION,
 )
 from .schemas import CriticVerdict
 from .tools.gcp_advisory_tools import (
@@ -50,6 +58,7 @@ from .tools.report_tools import (
     calculate_weighted_institution_ranking_tool,
     list_supported_bacen_filters_tool,
 )
+from .tools.simulation_tools import simulate_bcb_what_if_scenario_tool
 
 _DETERMINISTIC = types.GenerateContentConfig(temperature=0.1)
 _ANALYTICAL = types.GenerateContentConfig(temperature=0.3)
@@ -126,7 +135,7 @@ def build_report_pipeline() -> SequentialAgent:
         model=build_model(settings.models.analyst),
         static_instruction=CONSTITUTION,
         instruction=ANALYST_INSTRUCTION,
-        tools=[calculate_weighted_institution_ranking_tool],
+        tools=[calculate_weighted_institution_ranking_tool, simulate_bcb_what_if_scenario_tool],
         output_key="analysis_draft",
         generate_content_config=_ANALYTICAL,
         include_contents="default",
@@ -177,7 +186,11 @@ def build_gcp_advisory_pipeline() -> SequentialAgent:
         generate_content_config=_DETERMINISTIC,
     )
 
-    consultant_tools: list = [diagnose_institution_gaps_tool, match_gcp_solutions_catalog_tool]
+    consultant_tools: list = [
+        diagnose_institution_gaps_tool,
+        match_gcp_solutions_catalog_tool,
+        simulate_bcb_what_if_scenario_tool,
+    ]
     if settings.vertex_search_datastore:
         consultant_tools.append(
             VertexAiSearchTool(
@@ -236,4 +249,136 @@ def build_gcp_advisory_pipeline() -> SequentialAgent:
             "gaps and proposes grounded Google Cloud initiatives, architectures and differentiators."
         ),
         sub_agents=[data_prep, consultant, critic, publisher],
+    )
+
+
+def build_boardroom_warroom_pipeline() -> SequentialAgent:
+    """Data prep -> Parallel C-Level Panel (CTO + CRO + CFO) -> Pitch Coach (Pro) -> Critic -> Publisher."""
+    settings = get_settings()
+
+    data_prep = LlmAgent(
+        **_NO_TRANSFER,
+        name="warroom_data_prep",
+        description="Ensures verbatim 4-pillar BCB benchmark records exist for the Boardroom War Room.",
+        model=build_model(settings.models.collector),
+        static_instruction=CONSTITUTION,
+        instruction=WARROOM_DATA_PREP_INSTRUCTION,
+        tools=[PreloadMemoryTool(), build_bacen_toolset(BACEN_DATA_TOOLS), list_supported_bacen_filters_tool],
+        output_key="collected_data",
+        generate_content_config=_DETERMINISTIC,
+    )
+
+    persona_cto = LlmAgent(
+        **_NO_TRANSFER,
+        name="persona_cto",
+        description="Skeptical bank CTO challenging latency, SPI availability, legacy risk and multicloud lock-in.",
+        model=build_model(settings.models.collector),
+        static_instruction=CONSTITUTION,
+        instruction=WARROOM_CTO_INSTRUCTION,
+        output_key="cto_critique",
+        include_contents="none",
+        generate_content_config=_ANALYTICAL,
+    )
+    persona_cro = LlmAgent(
+        **_NO_TRANSFER,
+        name="persona_cro",
+        description="Rigorous bank CRO/Compliance challenging CMN 4.893, LGPD, MED fraud, Deati and Basel risk.",
+        model=build_model(settings.models.collector),
+        static_instruction=CONSTITUTION,
+        instruction=WARROOM_CRO_INSTRUCTION,
+        output_key="cro_critique",
+        include_contents="none",
+        generate_content_config=_ANALYTICAL,
+    )
+    persona_cfo = LlmAgent(
+        **_NO_TRANSFER,
+        name="persona_cfo",
+        description="Disciplined bank CFO challenging ROE impact, FinOps predictability and 0-90d payback.",
+        model=build_model(settings.models.collector),
+        static_instruction=CONSTITUTION,
+        instruction=WARROOM_CFO_INSTRUCTION,
+        output_key="cfo_critique",
+        include_contents="none",
+        generate_content_config=_ANALYTICAL,
+    )
+
+    c_level_panel = ParallelAgent(
+        name="warroom_c_level_panel",
+        description="Runs CTO, CRO and CFO executive critiques concurrently over verified BCB metrics.",
+        sub_agents=[persona_cto, persona_cro, persona_cfo],
+    )
+
+    pitch_coach = LlmAgent(
+        **_NO_TRANSFER,
+        name="warroom_pitch_coach",
+        description=(
+            "Principal Google Cloud FSI Deal Strategist synthesizing CTO/CRO/CFO objections into "
+            "grounded executive counter-arguments and competitive battlecards."
+        ),
+        model=build_model(settings.models.consultant),
+        static_instruction=CONSTITUTION,
+        instruction=WARROOM_COACH_INSTRUCTION,
+        tools=[diagnose_institution_gaps_tool, match_gcp_solutions_catalog_tool],
+        output_key="warroom_draft",
+        generate_content_config=_ANALYTICAL,
+        include_contents="default",
+    )
+
+    critic = LlmAgent(
+        **_NO_TRANSFER,
+        name="warroom_critic",
+        description="Independent LLM-as-judge auditing BCB numbers and Google Cloud claims in the War Room dossier.",
+        model=build_model(settings.models.critic),
+        static_instruction=CONSTITUTION,
+        instruction=WARROOM_CRITIC_INSTRUCTION,
+        output_schema=CriticVerdict,
+        output_key="critic_verdict",
+        include_contents="default",
+        generate_content_config=_DETERMINISTIC,
+    )
+
+    publisher = LlmAgent(
+        **_NO_TRANSFER,
+        name="warroom_publisher",
+        description="Applies critic fixes and publishes the final Boardroom War Room Dossier.",
+        model=build_model(settings.models.critic),
+        static_instruction=CONSTITUTION,
+        instruction=WARROOM_PUBLISHER_INSTRUCTION,
+        output_key="final_report",
+        include_contents="none",
+        generate_content_config=_DETERMINISTIC,
+    )
+
+    return SequentialAgent(
+        name="boardroom_warroom_pipeline",
+        description=(
+            "Multi-persona Boardroom War Room: runs CTO, CRO and CFO critiques in parallel "
+            "over official BCB metrics and synthesizes grounded Google Cloud counter-arguments."
+        ),
+        sub_agents=[data_prep, c_level_panel, pitch_coach, critic, publisher],
+    )
+
+
+def build_boardroom_roleplay_agent() -> LlmAgent:
+    """Interactive 1:1 Executive Roleplay simulator (CTO / CRO / CFO) with live pitch scoring."""
+    settings = get_settings()
+    return LlmAgent(
+        **_NO_TRANSFER,
+        name="boardroom_roleplay_agent",
+        description=(
+            "Interactive 1:1 C-Level pitch practice simulator: roleplays a bank's CTO, CRO or CFO "
+            "grounded in real BCB metrics, evaluates user defenses with a 1-5 scorecard and escalates objections."
+        ),
+        model=build_model(settings.models.consultant),
+        static_instruction=CONSTITUTION,
+        instruction=BOARDROOM_ROLEPLAY_INSTRUCTION,
+        tools=[
+            PreloadMemoryTool(),
+            build_bacen_toolset(BACEN_DATA_TOOLS),
+            diagnose_institution_gaps_tool,
+            match_gcp_solutions_catalog_tool,
+            simulate_bcb_what_if_scenario_tool,
+        ],
+        generate_content_config=_ANALYTICAL,
+        include_contents="default",
     )
