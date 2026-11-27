@@ -21,7 +21,12 @@ from .memory import MemoryPlugin
 from .observability import configure_logging, configure_tracing
 from .plugins import GuardrailsPlugin, ObservabilityPlugin, ToolGuardPlugin
 from .prompts import CONSTITUTION, COORDINATOR_INSTRUCTION
-from .sub_agents import build_knowledge_agent, build_quick_data_agent, build_report_pipeline
+from .sub_agents import (
+    build_gcp_advisory_pipeline,
+    build_knowledge_agent,
+    build_quick_data_agent,
+    build_report_pipeline,
+)
 from .tools.report_tools import export_report_to_gcs_tool
 
 configure_logging()
@@ -36,7 +41,12 @@ root_agent = LlmAgent(
     static_instruction=CONSTITUTION,
     instruction=COORDINATOR_INSTRUCTION,
     tools=[PreloadMemoryTool(), export_report_to_gcs_tool],
-    sub_agents=[build_knowledge_agent(), build_quick_data_agent(), build_report_pipeline()],
+    sub_agents=[
+        build_knowledge_agent(),
+        build_quick_data_agent(),
+        build_report_pipeline(),
+        build_gcp_advisory_pipeline(),
+    ],
     generate_content_config=types.GenerateContentConfig(temperature=0.1),
 )
 

@@ -93,8 +93,38 @@
       fintech_analyst: "Analista Pro",
       quality_critic: "Quality Critic",
       report_publisher: "Publicação",
+      gcp_advisory_pipeline: "Consultoria GCP",
+      gcp_data_prep: "Dados BCB (Prep)",
+      gcp_cloud_consultant: "Consultor Google Cloud (Pro)",
+      gcp_advisory_critic: "Quality Critic GCP",
+      gcp_advisory_publisher: "Publicação Plano GCP",
     };
     return map[name] || name;
+  }
+
+  const SUPPORTED_BANKS = [
+    { code: "NUBANK", label: "Nubank", patterns: ["nubank"] },
+    { code: "ITAU", label: "Itaú", patterns: ["itaú", "itau"] },
+    { code: "BRADESCO", label: "Bradesco", patterns: ["bradesco"] },
+    { code: "INTER", label: "Inter", patterns: ["inter"] },
+    { code: "C6_BANK", label: "C6 Bank", patterns: ["c6 bank", "c6_bank", "c6"] },
+    { code: "MERCADO_PAGO", label: "Mercado Pago", patterns: ["mercado pago", "mercado_pago"] },
+    { code: "BANCO_DO_BRASIL", label: "Banco do Brasil", patterns: ["banco do brasil", "banco_do_brasil"] },
+    { code: "SANTANDER", label: "Santander", patterns: ["santander"] },
+    { code: "CAIXA", label: "Caixa", patterns: ["caixa"] },
+    { code: "BTG_PACTUAL", label: "BTG Pactual", patterns: ["btg"] },
+  ];
+
+  function orderBanksForText(text) {
+    const lower = String(text || "").toLowerCase();
+    const detected = [];
+    const others = [];
+    for (const b of SUPPORTED_BANKS) {
+      const hit = b.patterns.some((p) => lower.includes(p));
+      if (hit) detected.push({ ...b, detected: true });
+      else others.push({ ...b, detected: false });
+    }
+    return [...detected, ...others];
   }
 
   function inferTitleFromMarkdown(markdown, fallbackPrompt) {
@@ -353,7 +383,7 @@
     // 1. Agents Orchestration Card
     const agentsHtml = (turn.agents || [])
       .map((ag) => {
-        const isPro = ag === "fintech_analyst";
+        const isPro = ag === "fintech_analyst" || ag === "gcp_cloud_consultant";
         const modelTag = isPro
           ? `<span class="model-tag pro">Gemini Pro</span>`
           : `<span class="model-tag">Gemini Flash</span>`;
@@ -499,6 +529,10 @@
             <span class="material-symbols-outlined">picture_as_pdf</span>
             <span>Exportar PDF</span>
           </button>
+          <button class="btn-gcp-advisory" type="button" data-action="gcp-plan" title="Gerar iniciativas e casos de uso Google Cloud a partir desta análise">
+            <span class="material-symbols-outlined">cloud_done</span>
+            <span>Plano Google Cloud</span>
+          </button>
           <button class="btn-secondary" type="button" data-action="copy-md">
             <span class="material-symbols-outlined">content_copy</span>
             <span>Copiar</span>
@@ -509,10 +543,42 @@
           </button>
         </div>
       </div>
+
+      <div class="gcp-bank-picker" data-role="gcp-bank-picker">
+        <div class="gcp-bank-picker-label">
+          <span class="material-symbols-outlined">auto_awesome</span>
+          <span>Selecione o banco-alvo para o Consultor Sênior Google Cloud:</span>
+        </div>
+        <div class="gcp-bank-chips">
+          ${orderBanksForText(`${turn.user_message || ""} ${turn.assistant_text || ""}`)
+            .map(
+              (b) =>
+                `<button class="bank-chip${b.detected ? " detected" : ""}" type="button" data-bank-label="${escapeHtml(b.label)}">${escapeHtml(b.label)}</button>`
+            )
+            .join("")}
+        </div>
+      </div>
     `;
 
     const pdfBtn = card.querySelector('[data-action="export-pdf"]');
     pdfBtn.addEventListener("click", () => exportTurnPdf(turn, pdfBtn));
+
+    const gcpBtn = card.querySelector('[data-action="gcp-plan"]');
+    const bankPicker = card.querySelector('[data-role="gcp-bank-picker"]');
+    gcpBtn.addEventListener("click", () => {
+      bankPicker.classList.toggle("open");
+    });
+    bankPicker.querySelectorAll(".bank-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const bankLabel = chip.getAttribute("data-bank-label");
+        bankPicker.classList.remove("open");
+        if (bankLabel && !state.isStreaming) {
+          sendPrompt(
+            `Com base nos dados do Banco Central coletados, atue como consultor sênior de Google Cloud e gere um plano priorizado de oportunidades, arquiteturas de referência e casos de uso para o ${bankLabel}.`
+          );
+        }
+      });
+    });
 
     const copyBtn = card.querySelector('[data-action="copy-md"]');
     copyBtn.addEventListener("click", async () => {

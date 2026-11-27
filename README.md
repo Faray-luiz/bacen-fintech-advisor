@@ -128,6 +128,7 @@ flowchart TD
   C -->|regulations / datasets| K["knowledge_agent (Flash)<br/>MCP glossary + CKAN + Vertex AI Search"]
   C -->|single-pillar lookup| Q["quick_data_agent (Flash)<br/>PreloadMemory · MCP data tools · filters"]
   C -->|benchmark / why / custom rank| P1
+  C -->|Google Cloud opportunities / use cases| GP1
   C -->|explicit save request| H{"Human confirmation<br/>require_confirmation=True"}
   H -->|approved| S[("GCS reports")]
   subgraph PIPE["report_pipeline (SequentialAgent)"]
@@ -135,9 +136,14 @@ flowchart TD
     P2 --> P3["quality_critic (Flash)<br/>CriticVerdict schema -> critic_verdict"]
     P3 --> P4["report_publisher (Flash)<br/>grounded final answer -> final_report"]
   end
-  K & Q & P1 --> TG["ToolGuardPlugin<br/>Pydantic validation · recovery hints"]
+  subgraph GCPADV["gcp_advisory_pipeline (SequentialAgent)"]
+    GP1["gcp_data_prep (Flash)<br/>reuses collected_data or 1x MCP"] --> GP2["gcp_cloud_consultant (Pro)<br/>diagnose_gaps + FSI catalog -> gcp_opportunities_draft"]
+    GP2 --> GP3["gcp_advisory_critic (Flash)<br/>CriticVerdict schema -> critic_verdict"]
+    GP3 --> GP4["gcp_advisory_publisher (Flash)<br/>executive brief -> final_report"]
+  end
+  K & Q & P1 & GP1 --> TG["ToolGuardPlugin<br/>Pydantic validation · recovery hints"]
   TG --> M["Bacen MCP (Cloud Run)"]
-  C & K & Q & P4 -.after_run_callback (async).-> MP["MemoryPlugin -> RedactingMemoryService (DLP)"]
+  C & K & Q & P4 & GP4 -.after_run_callback (async).-> MP["MemoryPlugin -> RedactingMemoryService (DLP)"]
   MP -.-> MB[("Memory Bank")]
 ```
 
@@ -149,16 +155,16 @@ All specialists enforce `disallow_transfer_to_parent=True, disallow_transfer_to_
 
 | Category | Criterion | Concrete Code Evidence |
 |---|---|---|
-| **1. Tool & Interface Design** | Comprehensive Tool Docstrings | [`bacen_advisor/tools/report_tools.py`](bacen_advisor/tools/report_tools.py) & [`mcp_bacen/src/api/mcp_server.py`](mcp_bacen/src/api/mcp_server.py): purpose, all arguments and return shapes documented across all 10 tools (3 local + 7 MCP). |
-| | Descriptive Naming | Action-specific tool names: `consultar_ranking_reclamacoes_bcb`, `consultar_taxas_juros_credito`, `consultar_estatisticas_pix_med`, `consultar_saude_prudencial_ifdata`, `comparar_instituicoes_financeiras`, `calculate_weighted_institution_ranking`, `export_report_to_gcs`. |
-| | Explicit JSON Schemas | [`bacen_advisor/schemas.py`](bacen_advisor/schemas.py): strict Pydantic input schemas (`extra="forbid"`) for all 7 MCP tools (`MCP_ARG_SCHEMAS`), typed output schemas (`McpToolOutput`, `RankingResult`, `ExportReportResult`, `SupportedFiltersResult`), materialized `TOOL_JSON_SCHEMAS` (Draft 2020-12) for all 10 tools, and `CriticVerdict` as `output_schema`. |
+| **1. Tool & Interface Design** | Comprehensive Tool Docstrings | [`bacen_advisor/tools/report_tools.py`](bacen_advisor/tools/report_tools.py), [`bacen_advisor/tools/gcp_advisory_tools.py`](bacen_advisor/tools/gcp_advisory_tools.py) & [`mcp_bacen/src/api/mcp_server.py`](mcp_bacen/src/api/mcp_server.py): purpose, all arguments and return shapes documented across all 12 tools (5 local + 7 MCP). |
+| | Descriptive Naming | Action-specific tool names: `consultar_ranking_reclamacoes_bcb`, `consultar_taxas_juros_credito`, `consultar_estatisticas_pix_med`, `consultar_saude_prudencial_ifdata`, `comparar_instituicoes_financeiras`, `calculate_weighted_institution_ranking`, `diagnose_institution_gaps`, `match_gcp_solutions_catalog`, `export_report_to_gcs`. |
+| | Explicit JSON Schemas | [`bacen_advisor/schemas.py`](bacen_advisor/schemas.py): strict Pydantic input schemas (`extra="forbid"`) for all 7 MCP tools (`MCP_ARG_SCHEMAS`), typed output schemas (`McpToolOutput`, `RankingResult`, `GapDiagnosisResult`, `GcpSolutionMatchResult`, `ExportReportResult`, `SupportedFiltersResult`), declarative FSI catalog (`GcpSolutionBlueprint`), materialized `TOOL_JSON_SCHEMAS` (Draft 2020-12) for all 12 tools, and `CriticVerdict` as `output_schema`. |
 | | Guided Error Handling | [`bacen_advisor/plugins/tool_guard.py`](bacen_advisor/plugins/tool_guard.py) & [`report_tools.py`](bacen_advisor/tools/report_tools.py): invalid arguments, malformed MCP payloads, empty results and transport/auth errors return structured payloads with actionable `recovery_hint` instructions instead of crashing. |
 | **2. Context & Memory** | Robust System Instructions | [`bacen_advisor/prompts.py`](bacen_advisor/prompts.py): shared `CONSTITUTION` (identity, 4-pillar BCB domain knowledge, directionality rules, 7 hard rules) injected as `static_instruction` across every `LlmAgent`, layered with role prompts. |
 | | History Compaction | [`bacen_advisor/agent.py`](bacen_advisor/agent.py): `EventsCompactionConfig` (sliding window with overlap summarized by Flash via `LlmEventSummarizer`) + `ContextCacheConfig` caching static instructions & tool declarations. |
 | | Persistent Session State | [`bacen_advisor/runtime.py`](bacen_advisor/runtime.py) & [`sub_agents.py`](bacen_advisor/sub_agents.py): `VertexAiSessionService` in production, SQLite (`DatabaseSessionService`) locally, **Vertex AI Search / Agent Search** KB (`VertexAiSearchTool`), and **Memory Bank** (`VertexAiMemoryBankService`). |
 | | Async Memory Operations | [`bacen_advisor/memory.py`](bacen_advisor/memory.py): `MemoryPlugin.after_run_callback` triggers `asyncio.create_task(_generate_memories(...))` so Memory Bank consolidation runs non-blocking in the background after every turn. |
-| **3. Orchestration & Logic** | Multi-Agent Patterns | [`bacen_advisor/sub_agents.py`](bacen_advisor/sub_agents.py): Coordinator/Dispatcher + `SequentialAgent` pipeline (`data_collector` → `fintech_analyst` → `quality_critic` → `report_publisher`) + LLM-as-judge critic. |
-| | Strategic Model Routing | [`bacen_advisor/config.py`](bacen_advisor/config.py): `ModelRouting` maps Flash (`gemini-2.5-flash`) to routing, data collection, critique and summarization, and **Pro (`gemini-2.5-pro`)** to deep multi-pillar analysis, with exponential backoff retries. |
+| **3. Orchestration & Logic** | Multi-Agent Patterns | [`bacen_advisor/sub_agents.py`](bacen_advisor/sub_agents.py): Coordinator/Dispatcher + two specialized `SequentialAgent` pipelines (`report_pipeline` for 4-pillar competitive benchmarks and `gcp_advisory_pipeline` for Senior Google Cloud FSI consulting) + independent LLM-as-judge critics. |
+| | Strategic Model Routing | [`bacen_advisor/config.py`](bacen_advisor/config.py): `ModelRouting` maps Flash (`gemini-2.5-flash`) to routing, data collection, critique and summarization, and **Pro (`gemini-2.5-pro`)** to deep multi-pillar analysis (`fintech_analyst`) and Google Cloud FSI solution consulting (`gcp_cloud_consultant`), with exponential backoff retries. |
 | | Guardrails & Policy Plugins | [`bacen_advisor/plugins/guardrails.py`](bacen_advisor/plugins/guardrails.py): Google Cloud **Model Armor** on prompts/responses + zero-latency local injection, leak and KYC/AML-bypass rules + configurable fail-open/fail-closed mode + critic self-evaluation. |
 | | Human-in-the-Loop Hooks | [`bacen_advisor/tools/report_tools.py`](bacen_advisor/tools/report_tools.py): `FunctionTool(export_report_to_gcs, require_confirmation=True)` bound exclusively to `bacen_coordinator`. |
 | **4. Observability & Tracing** | Structured JSON Logging | [`bacen_advisor/observability/logging.py`](bacen_advisor/observability/logging.py) & [`mcp_bacen/src/core/logging.py`](mcp_bacen/src/core/logging.py): Cloud Logging single-line JSON with `severity`, `sourceLocation`, trace/span correlation and structured `jsonPayload`. |

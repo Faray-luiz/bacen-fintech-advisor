@@ -41,6 +41,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["bacen_advisor*"]
 
+[tool.setuptools.package-data]
+"bacen_advisor.catalog" = ["*.json"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

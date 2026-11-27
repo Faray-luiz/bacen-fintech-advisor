@@ -170,6 +170,65 @@
         "user_id": "eval_user",
         "state": {}
       }
+    },
+    {
+      "eval_id": "story11_gcp_consultant_bradesco_opportunities",
+      "conversation": [
+        {
+          "invocation_id": "inv-1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Atue como consultor sênior de Google Cloud e gere iniciativas e casos de uso para o Bradesco com base nos 4 pilares do Banco Central."
+              }
+            ]
+          },
+          "final_response": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Com base no diagnóstico quantitativo dos 4 pilares públicos do BCB (2026-Q3 / 2026-09), as principais oportunidades Google Cloud para o Bradesco combinam Customer Engagement Suite (Deati), antifraude Pix/MED em tempo real (Pub/Sub + Dataflow + Vertex AI), Cloud Spanner/AlloyDB para alta disponibilidade e Apigee para Open Finance em conformidade com a Res. CMN 4.893/2021."
+              }
+            ]
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "name": "transfer_to_agent",
+                "args": {
+                  "agent_name": "gcp_advisory_pipeline"
+                }
+              },
+              {
+                "name": "comparar_instituicoes_financeiras",
+                "args": {
+                  "segmento": "TODOS",
+                  "modalidade_credito": "CARTAO_ROTATIVO"
+                }
+              },
+              {
+                "name": "diagnose_institution_gaps",
+                "args": {
+                  "target_institution": "BRADESCO"
+                }
+              },
+              {
+                "name": "match_gcp_solutions_catalog",
+                "args": {
+                  "target_institution": "BRADESCO",
+                  "segment": "INCUMBENTES"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "bacen_advisor",
+        "user_id": "eval_user",
+        "state": {}
+      }
     }
   ]
 }

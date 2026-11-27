@@ -15,7 +15,7 @@ from google.genai import types
 from bacen_advisor.agent import app, root_agent
 from bacen_advisor.memory import MemoryPlugin, RedactingMemoryService
 from bacen_advisor.plugins import GuardrailsPlugin, ObservabilityPlugin, ToolGuardPlugin
-from bacen_advisor.schemas import MCP_ARG_SCHEMAS, CriticVerdict
+from bacen_advisor.schemas import MCP_ARG_SCHEMAS, TOOL_JSON_SCHEMAS, CriticVerdict
 
 
 def _by_name(agent, name):
@@ -30,7 +30,31 @@ def _by_name(agent, name):
 
 def test_coordinator_routes_to_specialists():
     names = [a.name for a in root_agent.sub_agents]
-    assert names == ["knowledge_agent", "quick_data_agent", "report_pipeline"]
+    assert names == [
+        "knowledge_agent",
+        "quick_data_agent",
+        "report_pipeline",
+        "gcp_advisory_pipeline",
+    ]
+
+
+def test_gcp_advisory_pipeline_is_sequential_with_pro_consultant_and_critic():
+    pipeline = _by_name(root_agent, "gcp_advisory_pipeline")
+    assert isinstance(pipeline, SequentialAgent)
+    assert [a.name for a in pipeline.sub_agents] == [
+        "gcp_data_prep",
+        "gcp_cloud_consultant",
+        "gcp_advisory_critic",
+        "gcp_advisory_publisher",
+    ]
+    consultant = _by_name(root_agent, "gcp_cloud_consultant")
+    critic = _by_name(root_agent, "gcp_advisory_critic")
+    assert "pro" in consultant.model.model
+    assert "flash" in critic.model.model
+    assert critic.output_schema is CriticVerdict
+    consultant_tools = {getattr(t, "name", "") for t in consultant.tools}
+    assert {"diagnose_institution_gaps", "match_gcp_solutions_catalog"} <= consultant_tools
+    assert "export_report_to_gcs" not in consultant_tools
 
 
 def test_report_pipeline_is_sequential_with_critic():
@@ -234,5 +258,7 @@ def test_golden_dataset_trajectories_and_schemas_are_valid():
                     assert args["agent_name"] in specialist_names
                 elif name in MCP_ARG_SCHEMAS:
                     MCP_ARG_SCHEMAS[name].model_validate(args)
+                elif name in TOOL_JSON_SCHEMAS:
+                    assert isinstance(args, dict)
                 else:
                     raise AssertionError(f"Unknown tool in golden dataset: {name}")

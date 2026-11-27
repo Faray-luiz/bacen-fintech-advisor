@@ -35,7 +35,16 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 DEFAULT_USER_ID = "default_user"
 CONFIRMATION_TOOL_NAME = "adk_request_confirmation"
 
-_INTERMEDIATE_PIPELINE_AGENTS = {"data_collector", "fintech_analyst", "quality_critic"}
+_INTERMEDIATE_PIPELINE_AGENTS = {
+    "data_collector",
+    "fintech_analyst",
+    "quality_critic",
+    "gcp_data_prep",
+    "gcp_cloud_consultant",
+    "gcp_advisory_critic",
+}
+_CRITIC_AGENTS = {"quality_critic", "gcp_advisory_critic"}
+_PUBLISHER_AGENTS = {"report_publisher", "gcp_advisory_publisher"}
 
 _AGENT_STAGE_LABELS: dict[str, tuple[str, str]] = {
     "bacen_coordinator": ("Roteando consulta", "Flash"),
@@ -46,6 +55,11 @@ _AGENT_STAGE_LABELS: dict[str, tuple[str, str]] = {
     "fintech_analyst": ("Sintetizando benchmark competitivo & estratégia", "Pro"),
     "quality_critic": ("Auditando groundedness & fontes (LLM-as-Judge)", "Flash"),
     "report_publisher": ("Consolidando relatório executivo final", "Flash"),
+    "gcp_advisory_pipeline": ("Iniciando consultoria estratégica Google Cloud FSI", "Pipeline"),
+    "gcp_data_prep": ("Preparando dados BCB da instituição-alvo e pares", "Flash"),
+    "gcp_cloud_consultant": ("Consultor Sênior Google Cloud mapeando oportunidades & arquiteturas", "Pro"),
+    "gcp_advisory_critic": ("Auditando números BCB e catálogo Google Cloud (Critic)", "Flash"),
+    "gcp_advisory_publisher": ("Consolidando plano executivo Google Cloud final", "Flash"),
 }
 
 
@@ -140,6 +154,22 @@ def _summarize_tool_response(resp: Any) -> dict[str, Any]:
             "status": status,
             "summary": f"{len(resp['ranking'])} instituições ranqueadas · Líder: {leader}",
         }
+    if "gaps" in resp and isinstance(resp["gaps"], list) and resp.get("target_institution"):
+        critical = sum(1 for g in resp["gaps"] if isinstance(g, dict) and g.get("severity") == "CRITICO")
+        return {
+            "status": status,
+            "summary": (
+                f"{resp['target_institution']} ({resp.get('segment', '')}) · "
+                f"{len(resp['gaps'])} gap(s) detectado(s)"
+                + (f" ({critical} crítico)" if critical else "")
+            ),
+        }
+    if "solutions" in resp and isinstance(resp["solutions"], list):
+        cat_size = resp.get("total_catalog_size") or len(resp["solutions"])
+        return {
+            "status": status,
+            "summary": f"{len(resp['solutions'])} iniciativas Google Cloud FSI selecionadas (catálogo: {cat_size})",
+        }
     if "gcs_uri" in resp and resp["gcs_uri"]:
         return {"status": status, "summary": f"Exportado para {resp['gcs_uri']}"}
     if "error_message" in resp and resp["error_message"]:
@@ -164,9 +194,11 @@ def _try_parse_critic_verdict(text: str) -> dict[str, Any] | None:
 def _agent_model_label(agent_name: str, routing: dict[str, str]) -> str:
     if agent_name == "fintech_analyst":
         return routing.get("analyst", "gemini-pro")
-    if agent_name in ("data_collector", "quick_data_agent"):
+    if agent_name == "gcp_cloud_consultant":
+        return routing.get("consultant", routing.get("analyst", "gemini-pro"))
+    if agent_name in ("data_collector", "quick_data_agent", "gcp_data_prep"):
         return routing.get("collector", "gemini-flash")
-    if agent_name in ("quality_critic", "report_publisher"):
+    if agent_name in ("quality_critic", "report_publisher", "gcp_advisory_critic", "gcp_advisory_publisher"):
         return routing.get("critic", "gemini-flash")
     return routing.get("router", "gemini-flash")
 
@@ -287,11 +319,11 @@ def _extract_turns_from_session(session: Any, routing: dict[str, str]) -> list[d
             text = getattr(p, "text", None)
             is_thought = bool(getattr(p, "thought", False))
             if text and not is_thought:
-                if author == "quality_critic":
+                if author in _CRITIC_AGENTS:
                     parsed = _try_parse_critic_verdict(text)
                     if parsed:
                         current["critic_verdict"] = parsed
-                elif author == "report_publisher":
+                elif author in _PUBLISHER_AGENTS:
                     current["_publisher_text"] = text
                     current["final_agent"] = author
                 elif author not in _INTERMEDIATE_PIPELINE_AGENTS:
@@ -341,6 +373,7 @@ class _AgentRuntime:
             "router": m.router,
             "collector": m.collector,
             "analyst": m.analyst,
+            "consultant": m.consultant,
             "critic": m.critic,
             "summarizer": m.summarizer,
         }
@@ -689,12 +722,12 @@ def create_app(
                         text = getattr(p, "text", None)
                         is_thought = bool(getattr(p, "thought", False))
                         if text and not is_thought:
-                            if author == "quality_critic":
+                            if author in _CRITIC_AGENTS:
                                 parsed = _try_parse_critic_verdict(text)
                                 if parsed:
                                     critic_verdict = parsed
                                     yield _sse_frame("critic_verdict", parsed)
-                            elif author == "report_publisher":
+                            elif author in _PUBLISHER_AGENTS:
                                 publisher_text = text
                                 final_agent = author
                             elif author not in _INTERMEDIATE_PIPELINE_AGENTS:

@@ -46,9 +46,10 @@ _INJECTION_PATTERNS = [
 
 _BLOCK_MESSAGE = (
     "Não posso ajudar com esse pedido. Sou um assistente especializado em dados públicos "
-    "do Banco Central do Brasil (BCB) e Open Finance Brasil. Posso, por exemplo, comparar "
-    "Nubank, bancos digitais e grandes bancos em reclamações (Deati), taxas de crédito, "
-    "Pix/MED ou indicadores prudenciais do IF.data."
+    "do Banco Central do Brasil (BCB), Open Finance Brasil e arquiteturas públicas de "
+    "Google Cloud para o setor financeiro. Posso, por exemplo, comparar Nubank, bancos "
+    "digitais e grandes bancos nos 4 pilares do BCB ou propor iniciativas e casos de uso "
+    "de Google Cloud para endereçar gaps regulatórios e competitivos."
 )
 
 _OUTPUT_LEAK_PATTERNS = [

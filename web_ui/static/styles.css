@@ -599,6 +599,11 @@ textarea {
   transform: translateY(-1px);
 }
 
+.starter-card-highlight {
+  border-color: #c2d7fb;
+  background: #f8fbff;
+}
+
 .starter-icon {
   width: 36px;
   height: 36px;
@@ -974,6 +979,89 @@ textarea {
 
 .btn-secondary .material-symbols-outlined {
   font-size: 16px;
+}
+
+.btn-gcp-advisory {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border-radius: var(--radius-pill);
+  border: 1px solid #c2d7fb;
+  background: var(--google-blue-tint);
+  color: var(--google-blue-dark);
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+
+.btn-gcp-advisory:hover {
+  background: var(--google-blue-container);
+  border-color: #a8c7fa;
+}
+
+.btn-gcp-advisory .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.gcp-bank-picker {
+  display: none;
+  padding: 12px 20px 14px;
+  border-top: 1px solid var(--border-subtle);
+  background: #f8fbff;
+}
+
+.gcp-bank-picker.open {
+  display: block;
+}
+
+.gcp-bank-picker-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--google-blue-dark);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gcp-bank-picker-label .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.gcp-bank-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.bank-chip {
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.bank-chip:hover {
+  background: var(--google-blue-container);
+  border-color: var(--google-blue);
+  color: var(--google-blue-on-container);
+}
+
+.bank-chip.detected {
+  border-color: #a8c7fa;
+  background: var(--google-blue-tint);
+  color: var(--google-blue-dark);
+  font-weight: 600;
 }
 
 /* --------------------------------------------------------------------------

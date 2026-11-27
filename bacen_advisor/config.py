@@ -36,6 +36,11 @@ class ModelRouting:
     router: str = field(default_factory=lambda: os.getenv("MODEL_ROUTER", "gemini-2.5-flash"))
     collector: str = field(default_factory=lambda: os.getenv("MODEL_COLLECTOR", "gemini-2.5-flash"))
     analyst: str = field(default_factory=lambda: os.getenv("MODEL_ANALYST", "gemini-2.5-pro"))
+    consultant: str = field(
+        default_factory=lambda: os.getenv(
+            "MODEL_CONSULTANT", os.getenv("MODEL_ANALYST", "gemini-2.5-pro")
+        )
+    )
     critic: str = field(default_factory=lambda: os.getenv("MODEL_CRITIC", "gemini-2.5-flash"))
     summarizer: str = field(
         default_factory=lambda: os.getenv("MODEL_SUMMARIZER", "gemini-2.5-flash")

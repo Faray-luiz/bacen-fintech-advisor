@@ -459,6 +459,176 @@ class ExportReportResult(BaseModel):
 
 
 # --------------------------------------------------------------------------------------
+# Google Cloud Senior FSI Consultant schemas (gap diagnosis + declarative solution catalog)
+# --------------------------------------------------------------------------------------
+
+BCB_PILLAR_IDS: tuple[str, ...] = (
+    "reclamacoes_deati",
+    "taxas_credito",
+    "pix_med_spi",
+    "prudencial_ifdata_open_finance",
+)
+
+
+class InstitutionBenchmarkSnapshot(BaseModel):
+    """Verbatim BCB 4-pillar metrics for one institution copied from Bacen MCP responses."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    instituicao: str = Field(description="Canonical institution name, e.g. 'NUBANK', 'BRADESCO'.")
+    segmento: str | None = Field(default=None, description="NEOBANKS or INCUMBENTES.")
+    indice_reclamacoes: float | None = Field(
+        default=None, ge=0, description="BCB Deati substantiated complaints per 1M customers (lower is better)."
+    )
+    principal_motivo_reclamacao: str | None = Field(
+        default=None, description="Top BCB Deati complaint driver string."
+    )
+    taxa_juros_mensal_pct: float | None = Field(
+        default=None, ge=0, description="Monthly credit interest rate % (lower is more competitive)."
+    )
+    taxa_juros_anual_pct: float | None = Field(
+        default=None, ge=0, description="Annual credit interest rate % (lower is more competitive)."
+    )
+    disponibilidade_spi_pct: float | None = Field(
+        default=None, ge=0, le=100, description="SPI Pix operational availability % (floor >= 99.8%)."
+    )
+    med_por_100k: float | None = Field(
+        default=None, ge=0, description="Pix MED fraud claims per 100k tx (lower is better)."
+    )
+    taxa_devolucao_med_pct: float | None = Field(
+        default=None, ge=0, le=100, description="Pix MED recovery/return rate % (higher is better)."
+    )
+    indice_basileia_pct: float | None = Field(
+        default=None, ge=0, description="Basel III capital ratio % (regulatory floor >= 11.5%)."
+    )
+    roe_anualizado_pct: float | None = Field(
+        default=None, description="Annualized ROE % from IF.data (higher is stronger)."
+    )
+    inadimplencia_90d_pct: float | None = Field(
+        default=None, ge=0, le=100, description="90-day delinquency rate % (lower is better)."
+    )
+    disponibilidade_open_finance_pct: float | None = Field(
+        default=None, ge=0, le=100, description="Open Finance Phase 1 API availability % (floor >= 99.5%)."
+    )
+    score_reclamacoes_0_10: float | None = Field(default=None, ge=0, le=10)
+    score_taxas_credito_0_10: float | None = Field(default=None, ge=0, le=10)
+    score_pix_med_0_10: float | None = Field(default=None, ge=0, le=10)
+    score_prudencial_0_10: float | None = Field(default=None, ge=0, le=10)
+    score_competitivo_0_10: float | None = Field(default=None, ge=0, le=10)
+
+    @field_validator("instituicao", mode="before")
+    @classmethod
+    def _norm_inst(cls, v: str) -> str:
+        norm = normalize_institution(v)
+        if not norm:
+            raise ValueError("Institution cannot be empty.")
+        return norm
+
+    @field_validator("segmento", mode="before")
+    @classmethod
+    def _norm_seg(cls, v: str | None) -> str | None:
+        return normalize_segment(v)
+
+
+class InstitutionGap(BaseModel):
+    """Single quantitative competitive or regulatory gap detected for a target institution."""
+
+    pillar: Literal[
+        "reclamacoes_deati",
+        "taxas_credito",
+        "pix_med_spi",
+        "prudencial_ifdata_open_finance",
+    ]
+    metric: str = Field(description="Exact BCB metric identifier.")
+    metric_label: str = Field(description="Human-readable metric label with unit.")
+    direction: Literal["lower_is_better", "higher_is_better"]
+    severity: Literal["CRITICO", "ALTO", "OPORTUNIDADE"]
+    institution_value: float
+    peer_median: float | None = None
+    market_leader_value: float | None = None
+    market_leader_institution: str | None = None
+    regulatory_floor: float | None = None
+    delta_vs_peer_median: float | None = None
+    rationale: str = Field(description="Concise factual justification grounded in verbatim BCB values.")
+
+
+class GapDiagnosisResult(BaseModel):
+    """Output schema for ``diagnose_institution_gaps``."""
+
+    status: Literal["success", "error"]
+    target_institution: str | None = None
+    segment: str | None = None
+    complaint_driver: str | None = None
+    peer_count: int = 0
+    gaps: list[InstitutionGap] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
+    priority_pillars: list[str] = Field(default_factory=list)
+    error_message: str | None = None
+    recovery_hint: str | None = None
+
+
+class GcpSolutionBlueprint(BaseModel):
+    """Declarative Google Cloud FSI architecture blueprint loaded from the solution catalog."""
+
+    solution_id: str = Field(min_length=3)
+    title: str
+    category: Literal[
+        "AI & GenAI",
+        "Data & Analytics",
+        "Core & Payments",
+        "Open Finance & APIs",
+        "Security & Antifraud",
+        "Modernization & Sovereign",
+    ]
+    bcb_pillars: list[
+        Literal[
+            "reclamacoes_deati",
+            "taxas_credito",
+            "pix_med_spi",
+            "prudencial_ifdata_open_finance",
+        ]
+    ] = Field(min_length=1)
+    target_segments: list[Literal["TODOS", "NEOBANKS", "INCUMBENTES"]] = Field(min_length=1)
+    trigger_metrics: list[str] = Field(default_factory=list)
+    complaint_keywords: list[str] = Field(default_factory=list)
+    gcp_services: list[str] = Field(min_length=1)
+    google_differentiators: list[str] = Field(min_length=1)
+    reference_architecture: str
+    compliance_brazil: str
+    horizon: Literal[
+        "Quick Win (0-90 dias)",
+        "Escala Core (3-6 meses)",
+        "Transformacional (6-12 meses)",
+    ]
+    impacted_bcb_kpis: list[str] = Field(min_length=1)
+    discovery_questions: list[str] = Field(min_length=1)
+    public_references: list[str] = Field(default_factory=list)
+
+
+class MatchedGcpSolution(BaseModel):
+    """Ranked Google Cloud FSI initiative matched to a target bank's BCB profile."""
+
+    rank: int = Field(ge=1)
+    relevance_score: float = Field(ge=0)
+    matched_pillars: list[str] = Field(default_factory=list)
+    match_rationale: str
+    blueprint: GcpSolutionBlueprint
+
+
+class GcpSolutionMatchResult(BaseModel):
+    """Output schema for ``match_gcp_solutions_catalog``."""
+
+    status: Literal["success", "error"]
+    target_institution: str | None = None
+    segment: str | None = None
+    total_catalog_size: int = 0
+    advisory_mode: Literal["gap_remediation", "leadership_expansion"] = "gap_remediation"
+    solutions: list[MatchedGcpSolution] = Field(default_factory=list)
+    error_message: str | None = None
+    recovery_hint: str | None = None
+
+
+# --------------------------------------------------------------------------------------
 # Agent output schemas
 # --------------------------------------------------------------------------------------
 
@@ -522,5 +692,36 @@ TOOL_JSON_SCHEMAS: dict[str, dict[str, dict]] = {
             "additionalProperties": False,
         },
         "output": ExportReportResult.model_json_schema(),
+    },
+    "diagnose_institution_gaps": {
+        "input": {
+            "type": "object",
+            "properties": {
+                "target_institution": {"type": "string"},
+                "benchmark_records": {
+                    "type": "array",
+                    "items": InstitutionBenchmarkSnapshot.model_json_schema(),
+                },
+            },
+            "required": ["target_institution", "benchmark_records"],
+            "additionalProperties": False,
+        },
+        "output": GapDiagnosisResult.model_json_schema(),
+    },
+    "match_gcp_solutions_catalog": {
+        "input": {
+            "type": "object",
+            "properties": {
+                "target_institution": {"type": "string"},
+                "segment": {"type": "string"},
+                "gap_pillars": {"type": "array", "items": {"type": "string"}},
+                "gap_metrics": {"type": "array", "items": {"type": "string"}},
+                "complaint_driver": {"type": ["string", "null"]},
+                "max_solutions": {"type": "integer", "minimum": 1, "maximum": 8},
+            },
+            "required": ["target_institution"],
+            "additionalProperties": False,
+        },
+        "output": GcpSolutionMatchResult.model_json_schema(),
     },
 }

@@ -28,11 +28,19 @@ from .prompts import (
     COLLECTOR_INSTRUCTION,
     CONSTITUTION,
     CRITIC_INSTRUCTION,
+    GCP_CONSULTANT_INSTRUCTION,
+    GCP_CRITIC_INSTRUCTION,
+    GCP_DATA_PREP_INSTRUCTION,
+    GCP_PUBLISHER_INSTRUCTION,
     KNOWLEDGE_INSTRUCTION,
     PUBLISHER_INSTRUCTION,
     QUICK_DATA_INSTRUCTION,
 )
 from .schemas import CriticVerdict
+from .tools.gcp_advisory_tools import (
+    diagnose_institution_gaps_tool,
+    match_gcp_solutions_catalog_tool,
+)
 from .tools.mcp_bacen import (
     BACEN_DATA_TOOLS,
     BACEN_REFERENCE_TOOLS,
@@ -150,4 +158,82 @@ def build_report_pipeline() -> SequentialAgent:
         name="report_pipeline",
         description="Multi-pillar fintech/bank comparisons, weighted rankings and executive reports with fact-checking.",
         sub_agents=[collector, analyst, critic, publisher],
+    )
+
+
+def build_gcp_advisory_pipeline() -> SequentialAgent:
+    """Data prep (reuse or 1x MCP) -> Google Cloud Senior FSI Consultant (Pro) -> Critic -> Publisher."""
+    settings = get_settings()
+
+    data_prep = LlmAgent(
+        **_NO_TRANSFER,
+        name="gcp_data_prep",
+        description="Reuses session BCB benchmark data or fetches 4-pillar metrics for the target bank and peers.",
+        model=build_model(settings.models.collector),
+        static_instruction=CONSTITUTION,
+        instruction=GCP_DATA_PREP_INSTRUCTION,
+        tools=[PreloadMemoryTool(), build_bacen_toolset(BACEN_DATA_TOOLS), list_supported_bacen_filters_tool],
+        output_key="collected_data",
+        generate_content_config=_DETERMINISTIC,
+    )
+
+    consultant_tools: list = [diagnose_institution_gaps_tool, match_gcp_solutions_catalog_tool]
+    if settings.vertex_search_datastore:
+        consultant_tools.append(
+            VertexAiSearchTool(
+                data_store_id=settings.vertex_search_datastore,
+                max_results=5,
+                bypass_multi_tools_limit=True,
+            )
+        )
+
+    consultant = LlmAgent(
+        **_NO_TRANSFER,
+        name="gcp_cloud_consultant",
+        description=(
+            "Senior Google Cloud FSI Architect & Consultant generating grounded cloud "
+            "initiatives, reference architectures, differentiators and discovery plays "
+            "to address a bank's BCB and Open Finance gaps."
+        ),
+        model=build_model(settings.models.consultant),
+        static_instruction=CONSTITUTION,
+        instruction=GCP_CONSULTANT_INSTRUCTION,
+        tools=consultant_tools,
+        output_key="gcp_opportunities_draft",
+        generate_content_config=_ANALYTICAL,
+        include_contents="default",
+    )
+
+    critic = LlmAgent(
+        **_NO_TRANSFER,
+        name="gcp_advisory_critic",
+        description="Independent LLM-as-judge auditing BCB numbers and Google Cloud catalog grounding.",
+        model=build_model(settings.models.critic),
+        static_instruction=CONSTITUTION,
+        instruction=GCP_CRITIC_INSTRUCTION,
+        output_schema=CriticVerdict,
+        output_key="critic_verdict",
+        include_contents="default",
+        generate_content_config=_DETERMINISTIC,
+    )
+
+    publisher = LlmAgent(
+        **_NO_TRANSFER,
+        name="gcp_advisory_publisher",
+        description="Applies critic fixes and publishes the final Google Cloud FSI Advisory Brief.",
+        model=build_model(settings.models.critic),
+        static_instruction=CONSTITUTION,
+        instruction=GCP_PUBLISHER_INSTRUCTION,
+        output_key="final_report",
+        include_contents="none",
+        generate_content_config=_DETERMINISTIC,
+    )
+
+    return SequentialAgent(
+        name="gcp_advisory_pipeline",
+        description=(
+            "Senior Google Cloud FSI advisory pipeline: diagnoses a bank's BCB/Open Finance "
+            "gaps and proposes grounded Google Cloud initiatives, architectures and differentiators."
+        ),
+        sub_agents=[data_prep, consultant, critic, publisher],
     )

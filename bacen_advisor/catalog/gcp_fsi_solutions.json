@@ -1,0 +1,439 @@
+[
+  {
+    "solution_id": "fsi-deati-cx-omnichannel-ces",
+    "title": "Atendimento Omnichannel Autônomo & Agent Assist (PT-BR) contra Ofensores Deati",
+    "category": "AI & GenAI",
+    "bcb_pillars": ["reclamacoes_deati"],
+    "target_segments": ["TODOS", "INCUMBENTES", "NEOBANKS"],
+    "trigger_metrics": ["indice_reclamacoes", "score_reclamacoes_0_10"],
+    "complaint_keywords": ["cartao", "cobranca", "atendimento", "fatura", "credito", "contestacao", "pix"],
+    "gcp_services": [
+      "Customer Engagement Suite (Dialogflow CX + Agent Assist + Conversational Insights)",
+      "Vertex AI (Gemini Flash / Pro)",
+      "BigQuery",
+      "Cloud DLP (Sensitive Data Protection)"
+    ],
+    "google_differentiators": [
+      "IA conversacional multimodal com alta fluência em Português do Brasil (voz e chat) e latência otimizada com Gemini Flash.",
+      "Conversational Insights analisa 100% das interações para detectar picos de causa raiz antes de virarem reclamações reguladas procedentes no Deati/BCB.",
+      "Agent Assist reduz Tempo Médio de Atendimento (TMA) e erros de orientação de crédito com sugestões ancoradas em políticas oficiais.",
+      "Integração nativa com Cloud DLP para mascaramento automático de CPF, cartão e chave Pix EVP em gravações e transcrições (LGPD)."
+    ],
+    "reference_architecture": "Canais Voz/Chat/App -> Customer Engagement Suite (Dialogflow CX / Agent Assist) -> Vertex AI Grounding -> Cloud DLP (redação PII) -> Conversational Insights -> BigQuery (painel preditivo de ofensores Deati)",
+    "compliance_brazil": "Aderente à LGPD (mascaramento automático de PII via Cloud DLP) e Res. CMN 4.893/2021 (dados processados em southamerica-east1 com CMEK e trilha de auditoria no Cloud Logging).",
+    "horizon": "Quick Win (0-90 dias)",
+    "impacted_bcb_kpis": [
+      "indice_reclamacoes (↓)",
+      "reclamacoes_procedentes (↓)",
+      "score_reclamacoes_0_10 (↑)"
+    ],
+    "discovery_questions": [
+      "Qual percentual das reclamações procedentes no Deati hoje tem origem em falhas de primeira resolução (FCR) ou divergência de informação nos canais humanos e bots?",
+      "Vocês conseguem detectar em tempo real picos de atrito por motivo (Pix, cartão, oferta de crédito) antes de chegarem à Ouvidoria e ao BCB?",
+      "Como o time de atendimento trata hoje o mascaramento de dados sensíveis (LGPD) em transcrições para analytics?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/solutions/contact-center",
+      "https://cloud.google.com/sensitive-data-protection"
+    ]
+  },
+  {
+    "solution_id": "fsi-ouvidoria-agentic-governance",
+    "title": "Ouvidoria & Conformidade Assistida por Agentes Auditáveis (ADK + Model Armor)",
+    "category": "AI & GenAI",
+    "bcb_pillars": ["reclamacoes_deati", "prudencial_ifdata_open_finance"],
+    "target_segments": ["TODOS", "INCUMBENTES", "NEOBANKS"],
+    "trigger_metrics": ["indice_reclamacoes", "score_reclamacoes_0_10"],
+    "complaint_keywords": ["ouvidoria", "irregularidade", "oferta", "informacao", "credito", "seguranca"],
+    "gcp_services": [
+      "Vertex AI Agent Engine (Google ADK)",
+      "Gemini Enterprise",
+      "Model Armor",
+      "Vertex AI Search",
+      "Cloud Trace & Cloud Logging"
+    ],
+    "google_differentiators": [
+      "Arquitetura multi-agente governada com Google ADK, LLM-as-Judge (Quality Critic) e aprovações Human-in-the-Loop (HITL) nativas para respostas regulatórias.",
+      "Model Armor aplica proteção gerenciada contra prompt injection, vazamento de dados e respostas fora de política sem precisar construir filtros proprietários.",
+      "Vertex AI Search oferece grounding corporativo sobre circulares BCB, manuais de produtos e SLAs de Ouvidoria com rastreabilidade completa via OpenTelemetry."
+    ],
+    "reference_architecture": "Portal Ouvidoria / CRM -> Model Armor -> Vertex AI Agent Engine (ADK + Critic + HITL) -> Vertex AI Search (normativos BCB/CMN) -> Cloud Logging & Cloud Trace",
+    "compliance_brazil": "Governança de IA compatível com Res. CMN 4.893/2021 (rastreabilidade ponta a ponta, trilha imutável e revisão humana obrigatória em respostas oficiais ao regulador).",
+    "horizon": "Quick Win (0-90 dias)",
+    "impacted_bcb_kpis": [
+      "indice_reclamacoes (↓)",
+      "score_reclamacoes_0_10 (↑)"
+    ],
+    "discovery_questions": [
+      "Qual é o prazo médio de investigação de dossiês complexos na Ouvidoria e qual o custo operacional de cruzar evidências entre sistemas legados e normativos BCB?",
+      "Quais controles de segurança (prompt injection, redação de PII, trilha de auditoria) o comitê de Risco e Compliance exige para liberar GenAI em produção?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/overview",
+      "https://cloud.google.com/security-command-center/docs/model-armor-overview"
+    ]
+  },
+  {
+    "solution_id": "fsi-pix-med-realtime-antifraud",
+    "title": "Antifraude Pix & Orquestração MED em Tempo Real (Sub-segundo)",
+    "category": "Security & Antifraud",
+    "bcb_pillars": ["pix_med_spi", "reclamacoes_deati"],
+    "target_segments": ["TODOS", "NEOBANKS", "INCUMBENTES"],
+    "trigger_metrics": ["med_por_100k", "taxa_devolucao_med_pct", "score_pix_med_0_10"],
+    "complaint_keywords": ["pix", "med", "fraude", "golpe", "bloqueio", "seguranca", "conta"],
+    "gcp_services": [
+      "Pub/Sub",
+      "Dataflow",
+      "Vertex AI Feature Store & Online Prediction",
+      "BigQuery (BigQuery ML & Streaming)",
+      "Cloud Spanner"
+    ],
+    "google_differentiators": [
+      "Streaming unificado (Pub/Sub + Dataflow + BigQuery) elimina silos entre engenharia de dados e score de fraude em tempo real, viabilizando bloqueio cautelar em milissegundos.",
+      "Vertex AI Feature Store mantém consistência online/offline entre treino e inferência (evitando training-serving skew em padrões novos de golpes Pix).",
+      "Cloud Spanner sustenta grafos de contas laranjas e controle de limites transacionais em escala nacional com consistência forte e latência previsível."
+    ],
+    "reference_architecture": "Barramento Pix/SPI -> Pub/Sub -> Dataflow (enriquecimento streaming) -> Vertex AI Feature Store + Online Prediction (score fraude <50ms) -> Motor de Bloqueio Cautelar / Workflow MED -> BigQuery",
+    "compliance_brazil": "Apoia cumprimento da Res. BCB nº 1/2020 e regras do MED (bloqueio cautelar ágil e janela regulatória de análise/devolução de até 7 dias corridos) com residência em São Paulo (southamerica-east1).",
+    "horizon": "Escala Core (3-6 meses)",
+    "impacted_bcb_kpis": [
+      "med_por_100k (↓)",
+      "taxa_devolucao_med_pct (↑)",
+      "indice_reclamacoes (↓)",
+      "score_pix_med_0_10 (↑)"
+    ],
+    "discovery_questions": [
+      "Qual a latência atual entre uma transação Pix suspeita e o disparo do bloqueio cautelar ou da notificação MED para a instituição recebedora?",
+      "Qual parcela das solicitações MED resulta hoje em recuperação efetiva de saldo antes que o valor saia em camadas de contas laranjas?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/architecture/financial-services",
+      "https://cloud.google.com/vertex-ai/docs/featurestore"
+    ]
+  },
+  {
+    "solution_id": "fsi-spi-active-active-spanner",
+    "title": "Ledger & Gateway Pix Ativo-Ativo de Alta Disponibilidade (Spanner + GKE)",
+    "category": "Core & Payments",
+    "bcb_pillars": ["pix_med_spi"],
+    "target_segments": ["TODOS", "NEOBANKS", "INCUMBENTES"],
+    "trigger_metrics": ["disponibilidade_spi_pct", "score_pix_med_0_10"],
+    "complaint_keywords": ["pix", "indisponibilidade", "instabilidade", "falha", "operacional"],
+    "gcp_services": [
+      "Cloud Spanner",
+      "GKE Enterprise (Google Kubernetes Engine)",
+      "Cloud Load Balancing",
+      "Cloud Monitoring & Cloud Trace"
+    ],
+    "google_differentiators": [
+      "Cloud Spanner entrega consistência transacional ACID forte com TrueTime, SLA de até 99,999% (multi-região) e zero downtime em atualizações de schema — superando com folga o piso de 99,8% do SPI.",
+      "Escalabilidade horizontal automática para picos de 5º dia útil, Black Friday e 13º salário sem sharding manual de banco de dados.",
+      "Observabilidade distribuída unificada (Cloud Trace + SLO Monitoring) correlaciona latência ponta a ponta entre app, gateway SPI e banco de dados."
+    ],
+    "reference_architecture": "App / API Gateway -> Cloud Load Balancing -> GKE Enterprise (microsserviços Pix/SPI multi-zona) -> Cloud Spanner (ledger transacional ativo-ativo) -> Cloud Monitoring (SLOs >= 99,95%)",
+    "compliance_brazil": "Atende à meta de disponibilidade operacional do SPI (Res. BCB 1/2020, >= 99,8%) e requisitos de resiliência e continuidade de negócios da Res. CMN 4.893/2021 na região southamerica-east1 (3 zonas independentes).",
+    "horizon": "Transformacional (6-12 meses)",
+    "impacted_bcb_kpis": [
+      "disponibilidade_spi_pct (↑)",
+      "score_pix_med_0_10 (↑)"
+    ],
+    "discovery_questions": [
+      "Nos últimos picos transacionais (5º dia útil, datas promocionais), onde ocorreram os principais gargalos na jornada Pix: camada de banco de dados, filas ou conectividade com o SPI?",
+      "Qual o RTO/RPO real hoje em caso de indisponibilidade de uma zona de disponibilidade no core de pagamentos?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/spanner",
+      "https://cloud.google.com/kubernetes-engine"
+    ]
+  },
+  {
+    "solution_id": "fsi-cyber-secops-mandiant-fraud",
+    "title": "Resiliência Cibernética & Defesa contra Account Takeover (SecOps + Mandiant)",
+    "category": "Security & Antifraud",
+    "bcb_pillars": ["pix_med_spi", "reclamacoes_deati"],
+    "target_segments": ["TODOS", "NEOBANKS", "INCUMBENTES"],
+    "trigger_metrics": ["med_por_100k", "indice_reclamacoes"],
+    "complaint_keywords": ["fraude", "seguranca", "invasao", "golpe", "pix", "conta"],
+    "gcp_services": [
+      "Google Security Operations (Chronicle SIEM + SOAR)",
+      "Mandiant Threat Intelligence",
+      "reCAPTCHA Enterprise",
+      "Cloud Armor"
+    ],
+    "google_differentiators": [
+      "Google SecOps ingere telemetria em escala petabyte com retenção de 12 meses e correlação quase em tempo real (sem explosão de custos por volume de logs).",
+      "Mandiant Threat Intelligence traz inteligência ativa de campanhas de trojans bancários e engenharia social atuantes na América Latina.",
+      "reCAPTCHA Enterprise + Cloud Armor bloqueiam credential stuffing, bots de enumeração de chaves DICT e ataques DDoS na borda global do Google."
+    ],
+    "reference_architecture": "Borda Web/Mobile (Cloud Armor + reCAPTCHA Enterprise) -> Telemetria App/Core/Cloud -> Google SecOps (Chronicle SIEM + Playbooks SOAR) enriquecido com Mandiant Threat Intel",
+    "compliance_brazil": "Alinhado à política de segurança cibernética e resposta a incidentes exigida pela Res. CMN 4.893/2021 e requisitos de proteção de canais digitais do BCB.",
+    "horizon": "Quick Win (0-90 dias)",
+    "impacted_bcb_kpis": [
+      "med_por_100k (↓)",
+      "indice_reclamacoes (↓)",
+      "disponibilidade_spi_pct (↑)"
+    ],
+    "discovery_questions": [
+      "Quanto tempo o SOC leva hoje para correlacionar alertas de fraude em canais digitais com logs de infraestrutura e responder automaticamente a ataques de account takeover?",
+      "Os playbooks de fraude Pix já consomem inteligência de ameaças específica para campanhas de malware bancário no Brasil?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/security/products/security-operations",
+      "https://cloud.google.com/security/products/recaptcha"
+    ]
+  },
+  {
+    "solution_id": "fsi-credit-pricing-underwriting-ml",
+    "title": "Motor Dinâmico de Risco & Precificação de Crédito (BigQuery + Vertex AI)",
+    "category": "Data & Analytics",
+    "bcb_pillars": ["taxas_credito", "prudencial_ifdata_open_finance"],
+    "target_segments": ["TODOS", "NEOBANKS", "INCUMBENTES"],
+    "trigger_metrics": ["taxa_juros_mensal_pct", "inadimplencia_90d_pct", "score_taxas_credito_0_10"],
+    "complaint_keywords": ["credito", "juros", "taxa", "emprestimo", "consignado", "limite"],
+    "gcp_services": [
+      "BigQuery & BigLake",
+      "Vertex AI (Custom Training, AutoML Tabular, Model Registry, Explainable AI)",
+      "Vertex AI Feature Store",
+      "Dataplex (Data Governance)"
+    ],
+    "google_differentiators": [
+      "BigQuery + BigLake unificam dados transacionais, bureaus e sinais consentidos de Open Finance sem duplicação de pipelines (Zero-ETL), acelerando o ciclo de recalibração de modelos de crédito.",
+      "Vertex AI Explainable AI fornece explicabilidade auditável por variável (essencial para governança de risco de crédito, auditoria interna e LGPD Art. 20).",
+      "Vertex AI Model Monitoring detecta drift de inadimplência rapidamente em mudanças macroeconômicas (Selic/inflação), protegendo spread e ROE."
+    ],
+    "reference_architecture": "Core Crédito + Open Finance + Bureaus -> BigQuery / BigLake -> Vertex AI Feature Store -> Vertex AI Training & Explainable AI -> Endpoint de Decisão de Crédito (taxa e limite dinâmicos)",
+    "compliance_brazil": "Apoia revisão de decisões automatizadas prevista na LGPD (Art. 20) via Explainable AI e governança de modelos com linhagem completa no Dataplex e Model Registry.",
+    "horizon": "Escala Core (3-6 meses)",
+    "impacted_bcb_kpis": [
+      "taxa_juros_mensal_pct (↓)",
+      "inadimplencia_90d_pct (↓)",
+      "roe_anualizado_pct (↑)",
+      "score_taxas_credito_0_10 (↑)"
+    ],
+    "discovery_questions": [
+      "Quanto tempo leva hoje entre a hipótese de uma nova feature de risco (ex.: sinais de Open Finance ou comportamento Pix) e sua entrada em produção no motor de concessão?",
+      "Onde está o maior gargalo para reduzir taxas em cartão rotativo ou crédito pessoal sem pressionar a inadimplência acima de 90 dias?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/bigquery",
+      "https://cloud.google.com/vertex-ai/docs/explainable-ai/overview"
+    ]
+  },
+  {
+    "solution_id": "fsi-credit-renegotiation-agent",
+    "title": "Agente Proativo de Migração do Rotativo & Renegociação Inteligente",
+    "category": "AI & GenAI",
+    "bcb_pillars": ["taxas_credito", "reclamacoes_deati"],
+    "target_segments": ["TODOS", "NEOBANKS", "INCUMBENTES"],
+    "trigger_metrics": ["taxa_juros_mensal_pct", "inadimplencia_90d_pct", "indice_reclamacoes"],
+    "complaint_keywords": ["cartao", "rotativo", "fatura", "cobranca", "juros", "renegociacao"],
+    "gcp_services": [
+      "Vertex AI Agent Engine (ADK)",
+      "Gemini 2.5 / 3 Flash & Pro",
+      "BigQuery",
+      "Pub/Sub",
+      "Model Armor"
+    ],
+    "google_differentiators": [
+      "Roteamento híbrido Flash + Pro permite simulações financeiras determinísticas e conversação personalizada em escala massiva com custo controlado por interação.",
+      "Integração com ferramentas determinísticas de cálculo (zero alucinação de juros/CET) e guardrails Model Armor evitam ofertas inadequadas que geram reclamações no Deati.",
+      "Atuação preventiva antes da entrada no rotativo de alto custo, alinhada ao teto legal de 100% de encargos (Lei 14.690/2023)."
+    ],
+    "reference_architecture": "Gatilho de Fatura / Atraso (Pub/Sub) -> BigQuery (elegibilidade & propensão) -> Vertex AI Agent Engine (ADK + motor determinístico de parcelamento) -> App/WhatsApp com Model Armor",
+    "compliance_brazil": "Alinhado à Lei nº 14.690/2023 e Res. CMN nº 5.112/2023 (teto do cartão rotativo) com divulgação transparente de CET e registro auditável do aceite do cliente.",
+    "horizon": "Quick Win (0-90 dias)",
+    "impacted_bcb_kpis": [
+      "taxa_juros_mensal_pct (↓)",
+      "inadimplencia_90d_pct (↓)",
+      "indice_reclamacoes (↓)"
+    ],
+    "discovery_questions": [
+      "Qual proporção da carteira de cartões migra hoje de forma proativa para parcelamento estruturado antes de acumular encargos próximos ao teto do rotativo?",
+      "As jornadas de renegociação conseguem adaptar ofertas em tempo real com transparência de CET para evitar contestações posteriores no BCB?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/solutions/financial-services",
+      "https://cloud.google.com/vertex-ai/generative-ai/docs/agent-engine/overview"
+    ]
+  },
+  {
+    "solution_id": "fsi-aml-ai-compliance",
+    "title": "Prevenção à Lavagem de Dinheiro (PLD/AML) Baseada em IA (AML AI)",
+    "category": "Security & Antifraud",
+    "bcb_pillars": ["prudencial_ifdata_open_finance", "pix_med_spi"],
+    "target_segments": ["TODOS", "INCUMBENTES", "NEOBANKS"],
+    "trigger_metrics": ["med_por_100k", "roe_anualizado_pct", "indice_basileia_pct"],
+    "complaint_keywords": ["bloqueio", "seguranca", "conta", "fraude", "pix"],
+    "gcp_services": [
+      "Anti Money Laundering AI (AML AI)",
+      "BigQuery",
+      "Cloud DLP",
+      "Looker"
+    ],
+    "google_differentiators": [
+      "Produto gerenciado específico do Google Cloud para bancos (AML AI), substituindo motores legados de regras estáticas por modelos de ML treinados sobre redes transacionais e comportamento de clientes.",
+      "Reduz drasticamente falsos positivos (menor bloqueio indevido de clientes legítimos — menos reclamações Deati) enquanto amplia detecção de esquemas complexos via Pix.",
+      "Gera scores explicáveis que aceleram investigações de analistas PLD e comunicações regulatórias ao COAF/BCB."
+    ],
+    "reference_architecture": "Transações Core/Pix + KYC -> BigQuery (esquema canônico PLD) -> Google Cloud Anti Money Laundering AI -> Fila de Investigação & Governança (Looker)",
+    "compliance_brazil": "Apoia processos de PLD/FT compatíveis com a Circular BCB nº 3.978/2020 com explicabilidade dos alertas e governança de dados na região de São Paulo.",
+    "horizon": "Escala Core (3-6 meses)",
+    "impacted_bcb_kpis": [
+      "med_por_100k (↓)",
+      "indice_reclamacoes (↓)",
+      "roe_anualizado_pct (↑)"
+    ],
+    "discovery_questions": [
+      "Qual a taxa atual de falsos positivos nos alertas de PLD/AML e quanto esforço do time de compliance é consumido em triagem manual?",
+      "Os bloqueios preventivos de contas por regras rígidas têm gerado aumento nas reclamações de clientes legítimos no BCB?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/anti-money-laundering-ai"
+    ]
+  },
+  {
+    "solution_id": "fsi-prudential-ifdata-lakehouse",
+    "title": "Lakehouse Prudencial, Stress Testing Basileia III & Governança Regulatória",
+    "category": "Data & Analytics",
+    "bcb_pillars": ["prudencial_ifdata_open_finance"],
+    "target_segments": ["TODOS", "INCUMBENTES", "NEOBANKS"],
+    "trigger_metrics": ["indice_basileia_pct", "roe_anualizado_pct", "inadimplencia_90d_pct", "score_prudencial_0_10"],
+    "complaint_keywords": [],
+    "gcp_services": [
+      "BigQuery",
+      "Dataproc Serverless (Spark)",
+      "Dataplex (Data Lineage & Quality)",
+      "Looker"
+    ],
+    "google_differentiators": [
+      "BigQuery + Dataproc Serverless executam simulações massivas de RWA, alocação de capital (Basileia III) e stress testing sob demanda sem manter clusters ociosos.",
+      "Dataplex automatiza qualidade de dados e linhagem ponta a ponta para reportes regulatórios (IF.data, CADOC, SCR/BCB).",
+      "Looker oferece camada semântica única para CFO, CRO e Tesouraria, garantindo consistência de indicadores de ROE, inadimplência e capital."
+    ],
+    "reference_architecture": "Sistemas Contábeis / Risco / Carteira -> BigQuery + Dataproc Serverless (cálculo RWA & stress testing) -> Dataplex (linhagem e qualidade) -> Looker (painéis CFO/CRO e reportes IF.data)",
+    "compliance_brazil": "Apoia governança de capital e risco da Res. CMN nº 4.193 (Basileia III) e Res. CMN nº 4.557 (gerenciamento integrado de riscos) com rastreabilidade completa.",
+    "horizon": "Escala Core (3-6 meses)",
+    "impacted_bcb_kpis": [
+      "indice_basileia_pct (↑)",
+      "roe_anualizado_pct (↑)",
+      "score_prudencial_0_10 (↑)"
+    ],
+    "discovery_questions": [
+      "Qual a janela de fechamento e o nível de automação hoje para consolidar simulações de Basileia III, inadimplência por safra e alocação de capital por produto?",
+      "Existe hoje uma camada semântica única e com linhagem auditável entre os dados de risco, tesouraria e reportes enviados ao Banco Central?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/dataplex",
+      "https://cloud.google.com/looker"
+    ]
+  },
+  {
+    "solution_id": "fsi-open-finance-apigee-hub",
+    "title": "Hub de APIs Open Finance Brasil (FAPI / mTLS) & Monetização de Ecossistema",
+    "category": "Open Finance & APIs",
+    "bcb_pillars": ["prudencial_ifdata_open_finance", "taxas_credito"],
+    "target_segments": ["TODOS", "INCUMBENTES", "NEOBANKS"],
+    "trigger_metrics": ["disponibilidade_open_finance_pct", "score_prudencial_0_10", "taxa_juros_mensal_pct"],
+    "complaint_keywords": ["open finance", "api", "compartilhamento", "consentimento", "portabilidade"],
+    "gcp_services": [
+      "Apigee API Management",
+      "Cloud Armor",
+      "Cloud Trace & Cloud Monitoring",
+      "BigQuery"
+    ],
+    "google_differentiators": [
+      "Apigee possui aceleradores e políticas prontas para o perfil de segurança FAPI / mTLS / OAuth 2.0 exigido pelo Open Finance Brasil, reduzindo tempo de conformidade regulatória.",
+      "Gestão avançada de tráfego, cotas e detecção de anomalias de API protege o core bancário contra picos de chamadas de terceiros, sustentando disponibilidade >= 99,5%.",
+      "Analytics nativo integrado ao BigQuery transforma o Open Finance de obrigação regulatória em motor de aquisição de crédito e portabilidade."
+    ],
+    "reference_architecture": "Ecossistema Open Finance Brasil (mTLS/FAPI) -> Cloud Armor -> Apigee API Management -> Microsserviços de Consentimento & Dados -> BigQuery (analytics de funil e monetização)",
+    "compliance_brazil": "Aderente à Resolução Conjunta nº 1/2020 (Open Finance Brasil Fases 1–4), perfil de segurança FAPI e meta regulatória de disponibilidade trimestral >= 99,5%.",
+    "horizon": "Escala Core (3-6 meses)",
+    "impacted_bcb_kpis": [
+      "disponibilidade_open_finance_pct (↑)",
+      "score_prudencial_0_10 (↑)",
+      "taxa_juros_mensal_pct (↓)"
+    ],
+    "discovery_questions": [
+      "As APIs de Open Finance hoje estão integradas à esteira de crédito para melhorar precificação e oferta, ou operam apenas como centro de custo regulatório?",
+      "Como vocês protegem o core bancário contra rajadas de tráfego de agregadores e mantêm o SLA exigido pelo BCB sem degradar a latência?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/apigee",
+      "https://cloud.google.com/solutions/open-banking"
+    ]
+  },
+  {
+    "solution_id": "fsi-incumbent-core-modernization-alloydb",
+    "title": "Modernização Progressiva de Core Bancário & Desacoplamento de Legado (AlloyDB + Strangler)",
+    "category": "Modernization & Sovereign",
+    "bcb_pillars": ["reclamacoes_deati", "pix_med_spi", "prudencial_ifdata_open_finance"],
+    "target_segments": ["INCUMBENTES"],
+    "trigger_metrics": ["disponibilidade_spi_pct", "disponibilidade_open_finance_pct", "roe_anualizado_pct", "indice_reclamacoes"],
+    "complaint_keywords": ["sistema", "indisponibilidade", "atendimento", "cobranca", "cartao"],
+    "gcp_services": [
+      "AlloyDB for PostgreSQL",
+      "Datastream (CDC serverless)",
+      "Cloud Run & GKE Enterprise",
+      "Pub/Sub"
+    ],
+    "google_differentiators": [
+      "AlloyDB for PostgreSQL oferece 100% de compatibilidade PostgreSQL com até 4× mais performance transacional e 100× mais velocidade em consultas analíticas + busca vetorial integrada.",
+      "Padrão Strangler Fig com Datastream (CDC) permite offload de consultas de alto volume (saldos, extratos, cartões) sem big-bang arriscado no mainframe.",
+      "Redução direta de custo operacional (MIPS/licenciamento legado) liberando margem para melhoria de ROE e time-to-market de produtos digitais."
+    ],
+    "reference_architecture": "Core Legado / Mainframe -> Datastream (CDC) / Pub/Sub -> AlloyDB for PostgreSQL (camada operacional moderna) -> Cloud Run / GKE (APIs digitais de alta escala)",
+    "compliance_brazil": "Execução gradual com convivência controlada (dual-run) e segregação de ambiente em conformidade com a Res. CMN 4.893/2021.",
+    "horizon": "Transformacional (6-12 meses)",
+    "impacted_bcb_kpis": [
+      "disponibilidade_spi_pct (↑)",
+      "disponibilidade_open_finance_pct (↑)",
+      "roe_anualizado_pct (↑)",
+      "indice_reclamacoes (↓)"
+    ],
+    "discovery_questions": [
+      "Quais jornadas de varejo (consulta de saldo, fatura de cartão, Pix) ainda geram maior consumo de mainframe e limitam a velocidade de lançamento de novos produtos?",
+      "Existe hoje uma estratégia incremental de offload de leitura/escrita para nuvem sem depender de uma migração monolítica?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/alloydb",
+      "https://cloud.google.com/datastream"
+    ]
+  },
+  {
+    "solution_id": "fsi-neobank-multicloud-sovereign-ai",
+    "title": "Plataforma Aberta Multicloud, FinOps de IA & Soberania Regulatória (SP)",
+    "category": "Modernization & Sovereign",
+    "bcb_pillars": ["prudencial_ifdata_open_finance", "pix_med_spi", "taxas_credito"],
+    "target_segments": ["NEOBANKS"],
+    "trigger_metrics": ["roe_anualizado_pct", "indice_basileia_pct", "disponibilidade_spi_pct", "disponibilidade_open_finance_pct"],
+    "complaint_keywords": ["seguranca", "pix", "cartao", "credito"],
+    "gcp_services": [
+      "GKE Enterprise",
+      "Vertex AI (Gemini Flash/Pro + Context Caching + Provisioned Throughput)",
+      "BigQuery Omni / BigLake",
+      "Assured Workloads, VPC Service Controls & CMEK (southamerica-east1)"
+    ],
+    "google_differentiators": [
+      "Estratégia genuinamente aberta e multicloud (GKE Enterprise + BigLake / BigQuery Omni) permite que neobanks adotem o melhor de Data & AI do Google Cloud sem reescrever toda a infraestrutura existente.",
+      "Otimização nativa de custos de IA (FinOps): roteamento Flash/Pro, Context Caching e aceleração em TPUs/GPUs reduzem drasticamente custo por milhão de clientes ativos.",
+      "Região southamerica-east1 (São Paulo, 3 zonas) combinada com VPC Service Controls e CMEK garante soberania e isolamento de perímetro para dados financeiros regulados."
+    ],
+    "reference_architecture": "Ambiente Multicloud / Kubernetes -> GKE Enterprise + BigLake (acesso unificado a dados) -> Vertex AI (Flash/Pro + Context Caching) protegido por VPC Service Controls & CMEK em southamerica-east1",
+    "compliance_brazil": "Controles nativos de residência de dados no Brasil (southamerica-east1), chaves gerenciadas pelo cliente (CMEK) e perímetros VPC-SC alinhados à Res. CMN 4.893/2021 e LGPD.",
+    "horizon": "Quick Win (0-90 dias)",
+    "impacted_bcb_kpis": [
+      "roe_anualizado_pct (↑)",
+      "disponibilidade_spi_pct (↑)",
+      "disponibilidade_open_finance_pct (↑)"
+    ],
+    "discovery_questions": [
+      "Como vocês estão equilibrando hoje a escala de casos de uso de IA generativa para dezenas de milhões de clientes com previsibilidade de custo (FinOps) e baixa latência?",
+      "Quais cargas de Data & AI fazem mais sentido conectar em arquitetura aberta/multicloud para acelerar novos produtos financeiros sem lock-in?"
+    ],
+    "public_references": [
+      "https://cloud.google.com/assured-workloads",
+      "https://cloud.google.com/vpc-service-controls"
+    ]
+  }
+]

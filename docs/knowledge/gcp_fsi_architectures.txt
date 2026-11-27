@@ -1,0 +1,29 @@
+GOOGLE CLOUD FOR FINANCIAL SERVICES (BRAZIL) — PUBLIC SOLUTION ARCHITECTURES & DIFFERENTIATORS
+==============================================================================================
+
+1. REGULATORY & SOVEREIGNTY FOUNDATION IN BRAZIL
+- Region southamerica-east1 (São Paulo) with 3 independent availability zones supports low-latency financial workloads and Brazilian data residency.
+- Controls aligned to CMN Resolution 4.893/2021 (cloud computing & cybersecurity) and LGPD: VPC Service Controls, Customer-Managed Encryption Keys (CMEK), Assured Workloads, Cloud DLP (Sensitive Data Protection for CPF/CNPJ/Pix EVP redaction), and immutable Cloud Audit Logs.
+
+2. DEATI COMPLAINTS REDUCTION & CUSTOMER EXPERIENCE (CX)
+- Customer Engagement Suite (Dialogflow CX, Agent Assist, Conversational Insights) with fluent Brazilian Portuguese voice/chat models detects emerging complaint drivers across 100% of interactions before they escalate to substantiated BCB Deati complaints.
+- Auditable Ombudsman & Compliance agents built on Vertex AI Agent Engine (ADK), Vertex AI Search, and Model Armor provide grounded regulatory answers with Human-in-the-Loop (HITL) approvals and prompt-injection protection.
+
+3. PIX, SPI HIGH AVAILABILITY & MED REAL-TIME ANTIFRAUD
+- Cloud Spanner provides TrueTime global strong ACID consistency, up to 99.999% multi-region SLA, and zero-downtime schema updates — supporting 24x7 Pix/SPI ledgers well above the 99.8% BCB availability floor without manual sharding.
+- Streaming fraud architecture (Pub/Sub -> Dataflow -> Vertex AI Feature Store & Online Prediction -> BigQuery) enables sub-second risk scoring to trigger precautionary blocks and improve MED recovery rates.
+- Google Security Operations (Chronicle SIEM/SOAR) enriched with Mandiant Threat Intelligence, reCAPTCHA Enterprise, and Cloud Armor defends digital channels against social engineering, banking trojans, and account takeover.
+
+4. CREDIT PRICING, UNDERWRITING & DELINQUENCY MANAGEMENT
+- Unified Data & AI on BigQuery, BigLake, and Vertex AI (Tabular + Feature Store + Explainable AI) shortens model retraining cycles using consented Open Finance and behavioral signals, helping lower 90-day delinquency and improve credit-pricing competitiveness.
+- Explainable AI supports LGPD Art. 20 transparency requirements for automated credit decisions.
+- Proactive revolving-credit migration agents (Lei 14.690/2023 cap compliance) combine Gemini Flash/Pro with deterministic calculation tools and Model Armor guardrails.
+
+5. PRUDENTIAL GOVERNANCE (IF.DATA / BASEL III), AML & OPEN FINANCE BRASIL
+- Google Cloud Anti Money Laundering AI (AML AI) replaces brittle static rule engines with ML network detection, reducing false positives and strengthening COAF/BCB AML compliance (Circular BCB 3.978/2020).
+- BigQuery + Dataproc Serverless + Dataplex + Looker provide scalable Basel III stress testing, RWA computation, and end-to-end data lineage for IF.data reporting.
+- Apigee API Management offers native FAPI / mTLS / OAuth 2.0 security policies, traffic protection, and SLA observability engineered for Open Finance Brasil (>= 99.5% floor) and API monetization.
+
+6. SEGMENT-SPECIFIC MODERNIZATION PLAYS
+- S1 Incumbent Banks: Incremental Strangler Fig core offload using Datastream (CDC), AlloyDB for PostgreSQL (high-throughput transactional + analytical + vector SQL), and GKE / Cloud Run.
+- Digital Banks & Fintechs (Neobanks): Open multicloud AI & analytics via GKE Enterprise, BigLake / BigQuery Omni, and Vertex AI FinOps (Flash/Pro routing + Context Caching).
